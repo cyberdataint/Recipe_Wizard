@@ -2,6 +2,8 @@
 # https://github.com/marketplace/actions/netlify-actions
 
 name: Build and Deploy to Netlify
+permissions:
+  contents: write
 on:
   push:
   pull_request:
