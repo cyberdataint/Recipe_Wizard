@@ -6,6 +6,7 @@ import Pantry from './components/Pantry'
 import ShoppingList from './components/ShoppingList'
 import Recipes from './components/Recipes'
 import TopNav from './components/TopNav'
+import Chat from './components/Chat'
 
 function AppShell() {
   const { user, signOut } = useAuth()
@@ -27,10 +28,12 @@ function AppShell() {
         {tab === 'recipes' && <><h1>🍳 Recipe Wizard</h1><p>Search for delicious recipes with detailed ingredients!</p></>}
         {tab === 'pantry' && <><h1>🥫 Pantry</h1><p>Manage ingredients you already have.</p></>}
         {tab === 'shopping' && <><h1>🛒 Shopping List</h1><p>Track what you need to buy.</p></>}
+        {tab === 'chat' && <><h1>💬 Chat</h1><p>Ask the AI for ideas, substitutions, and tips.</p></>}
       </header>
       {tab === 'recipes' && <Recipes />}
       {tab === 'pantry' && <div className="main-container"><Pantry /></div>}
       {tab === 'shopping' && <div className="main-container"><ShoppingList /></div>}
+      {tab === 'chat' && <div className="main-container"><Chat /></div>}
     </div>
   )
 }
