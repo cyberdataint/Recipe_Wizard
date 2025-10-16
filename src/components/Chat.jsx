@@ -16,6 +16,7 @@ export default function Chat() {
   const [error, setError] = useState('')
   const [functionStatus, setFunctionStatus] = useState('')
   const [loadingHistory, setLoadingHistory] = useState(true)
+  const [isExpanded, setIsExpanded] = useState(false)
 
   // Lazy-load SDK only when needed to keep initial bundle light
   const sdkPromiseRef = useRef(null)
@@ -390,49 +391,71 @@ Be friendly and conversational. Answer cooking questions directly with knowledge
   }, [apiKey])
 
   return (
-    <div className="chat-container">
-      <div className="chat-header">
-        {!apiKey && (
-          <div className="chat-banner warn">Missing VITE_GEMINI_API_KEY in .env. Chat is disabled.</div>
-        )}
-
-        {loadingHistory && (
-          <div className="chat-banner info">Loading your chat history...</div>
-        )}
-
-        <button onClick={clearChatHistory} className="clear-chat-btn" title="Clear chat history">
-          🗑️ Clear Chat
-        </button>
-      </div>
-
-      <div className="chat-window">
-        {messages.map((m, idx) => (
-          <div key={idx} className={`msg ${m.role === 'user' ? 'user' : 'model'}`}>
-            <div className="bubble">
-              {m.text}
-            </div>
+    <>
+      {/* Floating Chat Widget */}
+      <div className={`chat-widget ${isExpanded ? 'expanded' : 'collapsed'}`}>
+        {/* Chat Header/Toggle Button */}
+        <div className="chat-widget-header" onClick={() => setIsExpanded(!isExpanded)}>
+          <div className="chat-widget-title">
+            <span className="chat-icon">💬</span>
+            <span>Cooking Assistant</span>
           </div>
-        ))}
-        {loading && (
-          <div className="msg model"><div className="bubble">Thinking…</div></div>
+          <button className="chat-toggle-btn" aria-label={isExpanded ? 'Minimize chat' : 'Expand chat'}>
+            {isExpanded ? '−' : '+'}
+          </button>
+        </div>
+
+        {/* Chat Content (only visible when expanded) */}
+        {isExpanded && (
+          <div className="chat-widget-content">
+            {/* Warnings/Status */}
+            {!apiKey && (
+              <div className="chat-banner warn">Missing VITE_GEMINI_API_KEY in .env. Chat is disabled.</div>
+            )}
+
+            {loadingHistory && (
+              <div className="chat-banner info">Loading your chat history...</div>
+            )}
+
+            {/* Chat Window */}
+            <div className="chat-window">
+              {messages.map((m, idx) => (
+                <div key={idx} className={`msg ${m.role === 'user' ? 'user' : 'model'}`}>
+                  <div className="bubble">
+                    {m.text}
+                  </div>
+                </div>
+              ))}
+              {loading && (
+                <div className="msg model"><div className="bubble">Thinking…</div></div>
+              )}
+            </div>
+
+            {/* Error/Status Messages */}
+            {error && <div className="chat-banner error">{error}</div>}
+            {functionStatus && <div className="chat-banner info">{functionStatus}</div>}
+
+            {/* Input Area */}
+            <div className="chat-input-row">
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={onKeyDown}
+                placeholder="Ask about recipes, substitutions, tips..."
+                rows={2}
+              />
+              <button onClick={send} disabled={!apiKey || loading || !input.trim()}>
+                {loading ? '⋯' : '→'}
+              </button>
+            </div>
+
+            {/* Clear Chat Button */}
+            <button onClick={clearChatHistory} className="clear-chat-btn" title="Clear chat history">
+              🗑️ Clear History
+            </button>
+          </div>
         )}
       </div>
-
-      {error && <div className="chat-banner error">{error}</div>}
-      {functionStatus && <div className="chat-banner info">{functionStatus}</div>}
-
-      <div className="chat-input-row">
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder="Ask about recipes, substitutions, or pantry-based ideas..."
-          rows={2}
-        />
-        <button onClick={send} disabled={!apiKey || loading || !input.trim()}>
-          {loading ? 'Sending…' : 'Send'}
-        </button>
-      </div>
-    </div>
+    </>
   )
 }
