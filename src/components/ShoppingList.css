@@ -11,6 +11,12 @@
   margin-bottom: 2rem;
 }
 
+.header-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
 .shopping-list-container h2 {
   font-size: 2rem;
   color: #333;
@@ -19,6 +25,25 @@
 
 .subtitle {
   color: #666;
+}
+
+.refresh-prices-btn {
+  padding: 0.75rem 1.5rem;
+  background: #28a745;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.refresh-prices-btn:hover {
+  background: #218838;
+}
+
+.refresh-prices-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .clear-btn {
@@ -33,6 +58,38 @@
 
 .clear-btn:hover {
   background: #c82333;
+}
+
+.cart-total {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 1.5rem;
+  border-radius: 12px;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.total-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.total-label {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.total-amount {
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.total-note {
+  font-size: 0.85rem;
+  opacity: 0.9;
+  margin: 0;
 }
 
 .add-item-form {
@@ -70,13 +127,22 @@
 
 .shopping-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 1rem;
   background: white;
   padding: 1.5rem;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   transition: all 0.2s;
+}
+
+.product-image {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #f8f9fa;
+  padding: 0.5rem;
 }
 
 .shopping-item:hover {
@@ -117,6 +183,90 @@
 .recipe {
   color: #667eea;
   font-weight: 600;
+}
+
+.kroger-info {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e0e0e0;
+}
+
+.product-desc {
+  font-size: 0.9rem;
+  color: #333;
+  margin: 0.25rem 0;
+}
+
+.product-brand {
+  font-size: 0.85rem;
+  color: #666;
+  margin: 0.25rem 0;
+}
+
+.price-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.price {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #28a745;
+}
+
+.sale-price {
+  color: #dc3545;
+}
+
+.regular-price {
+  font-size: 1rem;
+  color: #999;
+  text-decoration: line-through;
+}
+
+.sale-badge {
+  background: #dc3545;
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.loading-price {
+  font-size: 0.85rem;
+  color: #999;
+  font-style: italic;
+}
+
+.error-banner {
+  background: #fee2e2;
+  border: 2px solid #ef4444;
+  color: #991b1b;
+  padding: 1.5rem;
+  border-radius: 12px;
+  margin-bottom: 2rem;
+}
+
+.error-banner strong {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 1.1rem;
+}
+
+.error-banner p {
+  margin: 0.5rem 0;
+  line-height: 1.6;
+}
+
+.error-solution {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
+  font-size: 0.9rem;
 }
 
 .item-actions {

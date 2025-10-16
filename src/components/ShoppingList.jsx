@@ -1,12 +1,16 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import supabase from '../Supabase'
+import krogerAPI from '../KrogerAPI'
 import './ShoppingList.css'
 
 export default function ShoppingList() {
   const { user } = useAuth()
   const [shoppingItems, setShoppingItems] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadingPrices, setLoadingPrices] = useState(false)
+  const [priceData, setPriceData] = useState({})
+  const [error, setError] = useState('')
   const [newItem, setNewItem] = useState({
     ingredient_name: '',
     quantity: '',
@@ -32,11 +36,55 @@ export default function ShoppingList() {
 
       if (error) throw error
       setShoppingItems(data || [])
+      
+      // Auto-fetch prices after loading items
+      if (data && data.length > 0) {
+        fetchKrogerPrices(data)
+      }
     } catch (error) {
       console.error('Error fetching shopping items:', error)
     } finally {
       setLoading(false)
     }
+  }
+
+  const fetchKrogerPrices = async (items) => {
+    if (!items || items.length === 0) return
+    
+    setLoadingPrices(true)
+    setError('')
+    try {
+      const ingredientNames = items.map(item => item.ingredient_name)
+      const results = await krogerAPI.findMultipleIngredients(ingredientNames)
+      
+      const prices = {}
+      results.forEach((result) => {
+        if (result.product) {
+          prices[result.ingredient] = result.product
+        }
+      })
+      
+      setPriceData(prices)
+      
+      if (Object.keys(prices).length === 0) {
+        setError('No prices found. Make sure the Kroger proxy server is running (see KROGER_PROXY_SETUP.md)')
+      }
+    } catch (error) {
+      console.error('Error fetching Kroger prices:', error)
+      setError('Unable to connect to Kroger API. Make sure the proxy server is running on http://localhost:3001')
+    } finally {
+      setLoadingPrices(false)
+    }
+  }
+
+  const calculateTotal = () => {
+    let total = 0
+    shoppingItems.forEach(item => {
+      if (!item.checked && priceData[item.ingredient_name]) {
+        total += priceData[item.ingredient_name].price
+      }
+    })
+    return total.toFixed(2)
   }
 
   const addShoppingItem = async (e) => {
@@ -158,12 +206,46 @@ export default function ShoppingList() {
           <h2>🛒 Shopping List</h2>
           <p className="subtitle">Items you need to buy</p>
         </div>
-        {shoppingItems.some(item => item.checked) && (
-          <button onClick={clearCheckedItems} className="clear-btn">
-            Clear Checked Items
-          </button>
-        )}
+        <div className="header-actions">
+          {shoppingItems.length > 0 && (
+            <button 
+              onClick={() => fetchKrogerPrices(shoppingItems)} 
+              className="refresh-prices-btn"
+              disabled={loadingPrices}
+            >
+              {loadingPrices ? '🔄 Loading...' : '💲 Get Prices'}
+            </button>
+          )}
+          {shoppingItems.some(item => item.checked) && (
+            <button onClick={clearCheckedItems} className="clear-btn">
+              Clear Checked Items
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="error-banner">
+          <strong>⚠️ Pricing Unavailable</strong>
+          <p>{error}</p>
+          <p className="error-solution">
+            <strong>Solution:</strong> The Kroger API requires server-side authentication. 
+            To enable pricing, you'll need to set up a simple Node.js proxy server that makes the API calls on behalf of the frontend.
+          </p>
+        </div>
+      )}
+
+      {/* Cart Total */}
+      {Object.keys(priceData).length > 0 && (
+        <div className="cart-total">
+          <div className="total-info">
+            <span className="total-label">Estimated Total:</span>
+            <span className="total-amount">${calculateTotal()}</span>
+          </div>
+          <p className="total-note">Based on Kroger prices • Excludes checked items</p>
+        </div>
+      )}
 
       {/* Add New Item Form */}
       <form onSubmit={addShoppingItem} className="add-item-form">
@@ -200,38 +282,66 @@ export default function ShoppingList() {
         {shoppingItems.length === 0 ? (
           <p className="empty-message">Your shopping list is empty.</p>
         ) : (
-          shoppingItems.map((item) => (
-            <div key={item.id} className={`shopping-item ${item.checked ? 'checked' : ''}`}>
-              <input
-                type="checkbox"
-                checked={item.checked}
-                onChange={() => toggleChecked(item.id, item.checked)}
-                className="checkbox"
-              />
-              <div className="item-info">
-                <h4>{item.ingredient_name}</h4>
-                <p>
-                  {item.quantity} {item.unit}
-                  {item.recipe_name && <span className="recipe"> • For: {item.recipe_name}</span>}
-                </p>
+          shoppingItems.map((item) => {
+            const krogerProduct = priceData[item.ingredient_name]
+            return (
+              <div key={item.id} className={`shopping-item ${item.checked ? 'checked' : ''}`}>
+                <input
+                  type="checkbox"
+                  checked={item.checked}
+                  onChange={() => toggleChecked(item.id, item.checked)}
+                  className="checkbox"
+                />
+                {krogerProduct?.image && (
+                  <img 
+                    src={krogerProduct.image} 
+                    alt={item.ingredient_name}
+                    className="product-image"
+                  />
+                )}
+                <div className="item-info">
+                  <h4>{item.ingredient_name}</h4>
+                  <p>
+                    {item.quantity} {item.unit}
+                    {item.recipe_name && <span className="recipe"> • For: {item.recipe_name}</span>}
+                  </p>
+                  {krogerProduct && (
+                    <div className="kroger-info">
+                      <p className="product-desc">{krogerProduct.description}</p>
+                      <p className="product-brand">{krogerProduct.brand} • {krogerProduct.size}</p>
+                      <div className="price-info">
+                        {krogerProduct.onSale && (
+                          <span className="regular-price">${krogerProduct.regularPrice.toFixed(2)}</span>
+                        )}
+                        <span className={`price ${krogerProduct.onSale ? 'sale-price' : ''}`}>
+                          ${krogerProduct.price.toFixed(2)}
+                        </span>
+                        {krogerProduct.onSale && <span className="sale-badge">SALE</span>}
+                      </div>
+                    </div>
+                  )}
+                  {!krogerProduct && loadingPrices && (
+                    <p className="loading-price">Loading price...</p>
+                  )}
+                </div>
+                <div className="item-actions">
+                  <button 
+                    onClick={() => moveToCart(item)}
+                    className="pantry-btn"
+                    title="Move to pantry"
+                  >
+                    🥫
+                  </button>
+                  <button 
+                    onClick={() => deleteShoppingItem(item.id)}
+                    className="delete-btn"
+                  >
+                    🗑️
+                  </button>
+                </div>
               </div>
-              <div className="item-actions">
-                <button 
-                  onClick={() => moveToCart(item)}
-                  className="pantry-btn"
-                  title="Move to pantry"
-                >
-                  🥫
-                </button>
-                <button 
-                  onClick={() => deleteShoppingItem(item.id)}
-                  className="delete-btn"
-                >
-                  🗑️
-                </button>
-              </div>
-            </div>
-          ))
+            )
+          })
         )}
       </div>
     </div>
