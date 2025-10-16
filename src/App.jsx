@@ -1,14 +1,23 @@
 import { useState } from 'react'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
+import Auth from './components/Auth'
+import Pantry from './components/Pantry'
+import ShoppingList from './components/ShoppingList'
+import supabase from './Supabase'
 import './App.css'
 
-function App() {
+function MainApp() {
+  const { user, signOut } = useAuth()
+  const [currentView, setCurrentView] = useState('recipes') // 'recipes', 'pantry', 'shopping'
   const [query, setQuery] = useState('')
   const [recipes, setRecipes] = useState([])
   const [loading, setLoading] = useState(false)
   const [selectedRecipe, setSelectedRecipe] = useState(null)
   const [loadingDetails, setLoadingDetails] = useState(false)
   const [searchType, setSearchType] = useState('name') // 'name' or 'ingredient'
-  const API_KEY = '6b0f70086a7b4094ae3c567e2d3b3445'
+  const [pantryItems, setPantryItems] = useState([])
+  
+  const API_KEY = import.meta.env.VITE_SPOONACULAR_API_KEY
 
   const handleSearch = async (e) => {
     e.preventDefault()
@@ -81,6 +90,16 @@ function App() {
       const data = await response.json()
       setSelectedRecipe(data)
       
+      // Also fetch user's pantry to check which ingredients they have
+      if (user) {
+        const { data: pantryData } = await supabase
+          .from('pantry_items')
+          .select('ingredient_name')
+          .eq('user_id', user.id)
+        
+        setPantryItems(pantryData || [])
+      }
+      
     } catch (error) {
       console.error('Error:', error)
       alert('Sorry, could not load recipe details.')
@@ -89,11 +108,119 @@ function App() {
     }
   }
 
+  const addIngredientToShoppingList = async (ingredient, recipeName) => {
+    if (!user) {
+      alert('Please sign in to add ingredients to your shopping list')
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('shopping_list_items')
+        .insert([{
+          user_id: user.id,
+          ingredient_name: ingredient.name || ingredient.original,
+          quantity: ingredient.amount?.toString() || '1',
+          unit: ingredient.unit || '',
+          recipe_name: recipeName
+        }])
+
+      if (error) throw error
+      alert('Ingredient added to shopping list!')
+    } catch (error) {
+      console.error('Error adding to shopping list:', error)
+      alert('Failed to add ingredient to shopping list')
+    }
+  }
+
+  const addAllIngredientsToShoppingList = async () => {
+    if (!user) {
+      alert('Please sign in to add ingredients to your shopping list')
+      return
+    }
+
+    if (!selectedRecipe?.extendedIngredients) return
+
+    try {
+      const items = selectedRecipe.extendedIngredients.map(ingredient => ({
+        user_id: user.id,
+        ingredient_name: ingredient.name || ingredient.original,
+        quantity: ingredient.amount?.toString() || '1',
+        unit: ingredient.unit || '',
+        recipe_name: selectedRecipe.title
+      }))
+
+      const { error } = await supabase
+        .from('shopping_list_items')
+        .insert(items)
+
+      if (error) throw error
+      alert(`Added ${items.length} ingredients to shopping list!`)
+    } catch (error) {
+      console.error('Error adding to shopping list:', error)
+      alert('Failed to add ingredients to shopping list')
+    }
+  }
+
+  const isInPantry = (ingredientName) => {
+    return pantryItems.some(item => 
+      item.ingredient_name.toLowerCase().includes(ingredientName.toLowerCase()) ||
+      ingredientName.toLowerCase().includes(item.ingredient_name.toLowerCase())
+    )
+  }
+
+  const handleSignOut = async () => {
+    await signOut()
+    setCurrentView('recipes')
+  }
+
+  if (currentView === 'pantry') {
+    return (
+      <div className="app">
+        <nav className="navbar">
+          <h1>🍳 Recipe Wizard</h1>
+          <div className="nav-links">
+            <button onClick={() => setCurrentView('recipes')}>Recipes</button>
+            <button className="active">Pantry</button>
+            <button onClick={() => setCurrentView('shopping')}>Shopping List</button>
+            {user && <button onClick={handleSignOut} className="sign-out">Sign Out</button>}
+          </div>
+        </nav>
+        <Pantry />
+      </div>
+    )
+  }
+
+  if (currentView === 'shopping') {
+    return (
+      <div className="app">
+        <nav className="navbar">
+          <h1>🍳 Recipe Wizard</h1>
+          <div className="nav-links">
+            <button onClick={() => setCurrentView('recipes')}>Recipes</button>
+            <button onClick={() => setCurrentView('pantry')}>Pantry</button>
+            <button className="active">Shopping List</button>
+            {user && <button onClick={handleSignOut} className="sign-out">Sign Out</button>}
+          </div>
+        </nav>
+        <ShoppingList />
+      </div>
+    )
+  }
+
   return (
     <div className="app">
-      <header className="app-header">
+      <nav className="navbar">
         <h1>🍳 Recipe Wizard</h1>
-        <p>Search for delicious recipes with detailed ingredients!</p>
+        <div className="nav-links">
+          <button className="active">Recipes</button>
+          {user && <button onClick={() => setCurrentView('pantry')}>Pantry</button>}
+          {user && <button onClick={() => setCurrentView('shopping')}>Shopping List</button>}
+          {user && <button onClick={handleSignOut} className="sign-out">Sign Out</button>}
+        </div>
+      </nav>
+      <header className="app-header">
+        <h2>Search for delicious recipes with detailed ingredients!</h2>
       </header>
 
       <div className="main-container">
@@ -240,13 +367,37 @@ function App() {
                   </div>
 
                   <div className="recipe-section">
-                    <h3>📋 Ingredients</h3>
+                    <div className="section-header">
+                      <h3>📋 Ingredients</h3>
+                      {user && selectedRecipe.extendedIngredients && (
+                        <button 
+                          onClick={addAllIngredientsToShoppingList}
+                          className="add-all-btn"
+                        >
+                          Add All to Shopping List
+                        </button>
+                      )}
+                    </div>
                     <ul className="ingredients-list">
-                      {selectedRecipe.extendedIngredients?.map((ingredient, index) => (
-                        <li key={index}>
-                          <span className="ingredient-amount">{ingredient.original}</span>
-                        </li>
-                      ))}
+                      {selectedRecipe.extendedIngredients?.map((ingredient, index) => {
+                        const inPantry = user && isInPantry(ingredient.name)
+                        return (
+                          <li key={index} className={inPantry ? 'in-pantry' : ''}>
+                            <span className="ingredient-amount">
+                              {inPantry && <span className="pantry-badge">✓ In Pantry</span>}
+                              {ingredient.original}
+                            </span>
+                            {user && !inPantry && (
+                              <button 
+                                onClick={() => addIngredientToShoppingList(ingredient, selectedRecipe.title)}
+                                className="add-to-list-btn"
+                              >
+                                + Add to List
+                              </button>
+                            )}
+                          </li>
+                        )
+                      })}
                     </ul>
                   </div>
 
@@ -299,6 +450,24 @@ function App() {
       </div>
     </div>
   )
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  )
+}
+
+function AppContent() {
+  const { user } = useAuth()
+
+  if (!user) {
+    return <Auth />
+  }
+
+  return <MainApp />
 }
 
 export default App

@@ -11,22 +11,94 @@
   flex-direction: column;
 }
 
+.navbar {
+  background: rgba(255, 255, 255, 0.98);
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.navbar h1 {
+  font-size: 1.75rem;
+  color: #333;
+  margin: 0;
+}
+
+.nav-links {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.nav-links button {
+  padding: 0.75rem 1.5rem;
+  background: transparent;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #666;
+}
+
+.nav-links button:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.nav-links button.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-color: transparent;
+}
+
+.nav-links button.sign-out {
+  color: #dc3545;
+  border-color: #dc3545;
+}
+
+.nav-links button.sign-out:hover {
+  background: #dc3545;
+  color: white;
+}
+
 .app-header {
   background: rgba(255, 255, 255, 0.95);
-  padding: 2rem;
+  padding: 1.5rem 2rem;
   text-align: center;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
-.app-header h1 {
-  font-size: 2.5rem;
-  color: #333;
-  margin-bottom: 0.5rem;
-}
-
-.app-header p {
-  font-size: 1.1rem;
+.app-header h2 {
+  font-size: 1.3rem;
   color: #666;
+  margin: 0;
+  font-weight: 500;
+}
+
+.search-type-toggle {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+  justify-content: center;
+}
+
+.search-type-toggle label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.search-type-toggle input[type="radio"] {
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
 }
 
 .main-container {
@@ -330,15 +402,74 @@
   gap: 0.75rem;
 }
 
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.add-all-btn {
+  padding: 0.5rem 1rem;
+  background: #28a745;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.add-all-btn:hover {
+  background: #218838;
+}
+
 .ingredients-list li {
   padding: 0.75rem;
   background: #f8f9fa;
   border-radius: 8px;
   border-left: 3px solid #667eea;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.ingredients-list li.in-pantry {
+  background: #d4edda;
+  border-left-color: #28a745;
 }
 
 .ingredient-amount {
   color: #555;
+  flex: 1;
+}
+
+.pantry-badge {
+  display: inline-block;
+  background: #28a745;
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-right: 0.5rem;
+}
+
+.add-to-list-btn {
+  padding: 0.5rem 0.75rem;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.add-to-list-btn:hover {
+  background: #5568d3;
 }
 
 .instructions-list {
@@ -443,8 +574,29 @@
 
 /* Responsive Design */
 @media (max-width: 768px) {
-  .app-header h1 {
-    font-size: 2rem;
+  .navbar {
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem;
+  }
+
+  .navbar h1 {
+    font-size: 1.5rem;
+  }
+
+  .nav-links {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .nav-links button {
+    flex: 1;
+    min-width: 100px;
+  }
+
+  .app-header h2 {
+    font-size: 1.1rem;
   }
 
   .main-container {
@@ -459,6 +611,11 @@
   .search-form {
     flex-direction: column;
     border-radius: 15px;
+  }
+
+  .search-type-toggle {
+    flex-direction: column;
+    gap: 0.5rem;
   }
 
   .search-button {
@@ -488,6 +645,25 @@
   }
 
   .example-searches button {
+    width: 100%;
+  }
+
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .add-all-btn {
+    width: 100%;
+  }
+
+  .ingredients-list li {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .add-to-list-btn {
     width: 100%;
   }
 }
