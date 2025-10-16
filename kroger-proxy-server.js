@@ -3,7 +3,6 @@
 
 import express from 'express';
 import cors from 'cors';
-import fetch from 'node-fetch';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -53,42 +52,85 @@ app.use(cors({
 app.use(express.json());
 
 // Store access token in memory
-let accessToken = null;
-let tokenExpiry = null;
+// Cache tokens per scope to avoid scope mismatches between APIs
+const tokenCache = new Map(); // scope => { accessToken, tokenExpiry }
+const tokenPromiseCache = new Map(); // scope => Promise
 
 // Kroger credentials from environment variables
 const KROGER_CLIENT_ID = process.env.KROGER_CLIENT_ID || process.env.VITE_KROGER_CLIENT_ID;
 const KROGER_CLIENT_SECRET = process.env.KROGER_CLIENT_SECRET || process.env.VITE_KROGER_CLIENT_SECRET;
 
 // Get OAuth token
-async function getAccessToken() {
-  if (accessToken && tokenExpiry && Date.now() < tokenExpiry) {
-    return accessToken;
+async function getAccessToken(requiredScope = 'product.compact') {
+  const cached = tokenCache.get(requiredScope);
+  if (cached && cached.accessToken && cached.tokenExpiry && Date.now() < cached.tokenExpiry) {
+    return cached.accessToken;
+  }
+
+  // If a token request is already in-flight for this scope, await it
+  const inflight = tokenPromiseCache.get(requiredScope);
+  if (inflight) {
+    return inflight;
   }
 
   try {
+    const delay = (ms) => new Promise(r => setTimeout(r, ms));
     const credentials = Buffer.from(`${KROGER_CLIENT_ID}:${KROGER_CLIENT_SECRET}`).toString('base64');
-    const response = await fetch('https://api.kroger.com/v1/connect/oauth2/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Basic ${credentials}`
-      },
-      body: 'grant_type=client_credentials&scope=product.compact'
-    });
+    const requestToken = async (scope) => {
+      const mode = (process.env.KROGER_HEADERS_MODE || 'minimal').toLowerCase();
+      const common = {
+        'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8',
+        'Authorization': `Basic ${credentials}`,
+        'Accept': 'application/json',
+      };
+      const browsery = {
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
+        'Origin': 'https://www.kroger.com',
+        'Referer': 'https://www.kroger.com/',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+      };
+      const headers = mode === 'browser' ? { ...common, ...browsery } : common;
+      return fetch('https://api.kroger.com/v1/connect/oauth2/token', {
+        method: 'POST',
+        headers,
+        body: `grant_type=client_credentials&scope=${encodeURIComponent(scope)}`
+      });
+    };
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Kroger auth failed (${response.status}):`, errorText);
+    // Request token for the required scope only
+    // Always use product.compact; some accounts are not provisioned for other scopes
+    // Retry up to 5 times with exponential backoff if Access Denied or transient failures occur
+    let response;
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      const tokenPromise = requestToken('product.compact');
+      tokenPromiseCache.set(requiredScope, tokenPromise);
+      response = await tokenPromise;
+      if (response.ok) break;
+
+      const txt = await response.text();
+      console.warn(`Token attempt ${attempt} failed: ${response.status} - ${txt}`);
+      tokenPromiseCache.delete(requiredScope);
+      if (attempt < 5) {
+        const backoff = 400 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 400);
+        await delay(backoff);
+        continue;
+      }
+      const err = new Error(`Failed token with scope "product.compact": ${response.status} - ${txt}`);
+      console.error(err.message);
       console.error(`Client ID (first 10 chars): ${KROGER_CLIENT_ID?.substring(0, 10)}...`);
-      throw new Error(`Failed to get access token: ${response.status} - ${errorText}`);
+      throw err;
     }
 
     const data = await response.json();
-    accessToken = data.access_token;
-    tokenExpiry = Date.now() + ((data.expires_in - 300) * 1000);
+    const accessToken = data.access_token;
+    const tokenExpiry = Date.now() + ((data.expires_in - 300) * 1000);
+    tokenCache.set('product.compact', { accessToken, tokenExpiry });
+    tokenPromiseCache.delete(requiredScope);
     return accessToken;
   } catch (error) {
+    tokenPromiseCache.delete(requiredScope);
     console.error('Kroger auth error:', error);
     throw error;
   }
@@ -103,7 +145,7 @@ app.get('/api/kroger/products', async (req, res) => {
       return res.status(400).json({ error: 'Missing search term' });
     }
 
-    const token = await getAccessToken();
+  const token = await getAccessToken('product.compact');
     const url = new URL('https://api.kroger.com/v1/products');
     url.searchParams.append('filter.term', term);
     url.searchParams.append('filter.locationId', locationId);
@@ -112,12 +154,16 @@ app.get('/api/kroger/products', async (req, res) => {
     const response = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Connection': 'close',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
       }
     });
 
     if (!response.ok) {
-      throw new Error(`Product search failed: ${response.status}`);
+      const text = await response.text();
+      throw new Error(`Product search failed: ${response.status} - ${text}`);
     }
 
     const data = await response.json();
@@ -128,27 +174,78 @@ app.get('/api/kroger/products', async (req, res) => {
   }
 });
 
+// Locations endpoint - list locations near a lat/long
+app.get('/api/kroger/locations', async (req, res) => {
+  try {
+    // Defaults: Oakland County, MI centroid-ish and 50 mile radius
+    const {
+      lat = '42.660',
+      lon = '-83.385',
+      radius = '50',
+      limit = '200',
+      chain = ''
+    } = req.query;
+
+  const token = await getAccessToken('product.compact');
+    const url = new URL('https://api.kroger.com/v1/locations');
+    // Use geospatial filter
+    url.searchParams.append('filter.latLong.near', `${lat},${lon}`);
+    url.searchParams.append('filter.radiusInMiles', String(radius));
+    url.searchParams.append('filter.limit', String(limit));
+    // Optionally filter by chain when provided (e.g., 'Kroger')
+    if (chain) {
+      url.searchParams.append('filter.chain', chain);
+    }
+
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Connection': 'close',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+      }
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Locations fetch failed: ${response.status} ${text}`);
+    }
+
+    const data = await response.json();
+    // Return raw data — frontend can filter further if needed
+    res.json(data);
+  } catch (error) {
+    console.error('Error fetching locations:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Batch search endpoint
 app.post('/api/kroger/batch-search', async (req, res) => {
   try {
-    const { ingredients } = req.body;
+    const { ingredients, locationId = '01400943' } = req.body;
     
     if (!ingredients || !Array.isArray(ingredients)) {
       return res.status(400).json({ error: 'Invalid ingredients array' });
     }
 
+    // Obtain token once per batch to avoid hammering token endpoint
+    const token = await getAccessToken('product.compact');
     const results = await Promise.allSettled(
       ingredients.map(async (ingredient) => {
-        const token = await getAccessToken();
         const url = new URL('https://api.kroger.com/v1/products');
         url.searchParams.append('filter.term', ingredient);
-        url.searchParams.append('filter.locationId', '01400943');
+        url.searchParams.append('filter.locationId', String(locationId));
         url.searchParams.append('filter.limit', '1');
 
         const response = await fetch(url, {
           headers: {
             'Authorization': `Bearer ${token}`,
-            'Accept': 'application/json'
+            'Accept': 'application/json',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Connection': 'close',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
           }
         });
 
@@ -163,8 +260,17 @@ app.post('/api/kroger/batch-search', async (req, res) => {
           return { ingredient, product: null };
         }
 
-        const price = product.items?.[0]?.price?.regular || 0;
-        const promoPrice = product.items?.[0]?.price?.promo || null;
+        const firstItem = product.items?.[0] || {};
+        const price = firstItem?.price?.regular || 0;
+        const promoPrice = firstItem?.price?.promo || null;
+
+        // Build aisle text (best-effort)
+        const aisleLoc = firstItem?.aisleLocations?.[0] || null;
+        const aisleParts = [];
+        if (aisleLoc?.number) aisleParts.push(`Aisle ${aisleLoc.number}`);
+        if (aisleLoc?.description) aisleParts.push(aisleLoc.description);
+        if (aisleLoc?.bayNumber) aisleParts.push(`Bay ${aisleLoc.bayNumber}`);
+        const aisleText = aisleParts.length ? aisleParts.join(' • ') : null;
 
         return {
           ingredient,
@@ -175,9 +281,12 @@ app.post('/api/kroger/batch-search', async (req, res) => {
             price: promoPrice || price,
             regularPrice: price,
             onSale: !!promoPrice,
-            size: product.items?.[0]?.size || '',
+            size: firstItem?.size || '',
             image: product.images?.[0]?.sizes?.[0]?.url || null,
-            upc: product.upc
+            upc: product.upc,
+            aisle: aisleText,
+            aisleRaw: aisleLoc || null,
+            categories: product.categories || []
           }
         };
       })

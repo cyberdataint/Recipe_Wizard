@@ -11,6 +11,10 @@ export default function ShoppingList() {
   const [loadingPrices, setLoadingPrices] = useState(false)
   const [priceData, setPriceData] = useState({})
   const [error, setError] = useState('')
+  const [stores, setStores] = useState([])
+  const [selectedStore, setSelectedStore] = useState(() => {
+    return localStorage.getItem('kroger_location_id') || '01400943'
+  })
   const [newItem, setNewItem] = useState({
     ingredient_name: '',
     quantity: '',
@@ -25,13 +29,32 @@ export default function ShoppingList() {
     }
   }, [user])
 
+  // Load nearby stores on mount
+  useEffect(() => {
+    const loadStores = async () => {
+      try {
+        const data = await krogerAPI.listLocations({ lat: 42.66, lon: -83.385, radius: 50, limit: 200, chain: 'Kroger' })
+        // Filter to Kroger family chains commonly shoppable (optional)
+        const sorted = (data || []).sort((a, b) => {
+          const an = a?.address?.city || ''
+          const bn = b?.address?.city || ''
+          return an.localeCompare(bn)
+        })
+        setStores(sorted)
+      } catch (e) {
+        console.error('Failed to load stores', e)
+      }
+    }
+    loadStores()
+  }, [])
+
   const fetchShoppingItems = async () => {
     try {
       const { data, error } = await supabase
         .from('shopping_list_items')
         .select('*')
         .eq('user_id', user.id)
-        .order('checked', { ascending: true })
+  // .order('checked', { ascending: true })
         .order('created_at', { ascending: false })
 
       if (error) throw error
@@ -48,43 +71,24 @@ export default function ShoppingList() {
     }
   }
 
-  const fetchKrogerPrices = async (items) => {
-    if (!items || items.length === 0) return
-    
-    setLoadingPrices(true)
-    setError('')
-    try {
-      const ingredientNames = items.map(item => item.ingredient_name)
-      const results = await krogerAPI.findMultipleIngredients(ingredientNames)
-      
-      const prices = {}
-      results.forEach((result) => {
-        if (result.product) {
-          prices[result.ingredient] = result.product
-        }
-      })
-      
-      setPriceData(prices)
-      
-      if (Object.keys(prices).length === 0) {
-        setError('No prices found. Make sure the Kroger proxy server is running (see KROGER_PROXY_SETUP.md)')
-      }
-    } catch (error) {
-      console.error('Error fetching Kroger prices:', error)
-      setError('Unable to connect to Kroger API. Make sure the proxy server is running on http://localhost:3001')
-    } finally {
-      setLoadingPrices(false)
-    }
-  }
-
   const calculateTotal = () => {
     let total = 0
     shoppingItems.forEach(item => {
-      if (!item.checked && priceData[item.ingredient_name]) {
+      if (priceData[item.ingredient_name]) {
         total += priceData[item.ingredient_name].price
       }
     })
     return total.toFixed(2)
+  }
+
+  const onChangeStore = (e) => {
+    const locId = e.target.value
+    setSelectedStore(locId)
+    krogerAPI.setLocationId(locId)
+    // Refresh prices when changing store if items exist
+    if (shoppingItems.length > 0) {
+      fetchKrogerPrices(shoppingItems)
+    }
   }
 
   const addShoppingItem = async (e) => {
@@ -115,17 +119,30 @@ export default function ShoppingList() {
     }
   }
 
-  const toggleChecked = async (id, currentChecked) => {
+  // Fetch Kroger prices for shopping items
+  const fetchKrogerPrices = async (items) => {
+    if (!items || items.length === 0) return
+    setLoadingPrices(true)
+    setError('')
     try {
-      const { error } = await supabase
-        .from('shopping_list_items')
-        .update({ checked: !currentChecked })
-        .eq('id', id)
-
-      if (error) throw error
-      fetchShoppingItems()
+      const ingredientNames = items.map(item => item.ingredient_name)
+      krogerAPI.setLocationId(selectedStore)
+      const results = await krogerAPI.findMultipleIngredients(ingredientNames)
+      const prices = {}
+      results.forEach((result) => {
+        if (result.product) {
+          prices[result.ingredient] = result.product
+        }
+      })
+      setPriceData(prices)
+      if (Object.keys(prices).length === 0) {
+        setError('No prices found. Make sure the Kroger proxy server is running (see KROGER_PROXY_SETUP.md)')
+      }
     } catch (error) {
-      console.error('Error updating shopping item:', error)
+      console.error('Error fetching Kroger prices:', error)
+      setError('Unable to connect to Kroger API. Make sure the proxy server is running on http://localhost:3001')
+    } finally {
+      setLoadingPrices(false)
     }
   }
 
@@ -175,25 +192,7 @@ export default function ShoppingList() {
     }
   }
 
-  const clearCheckedItems = async () => {
-    const checkedIds = shoppingItems.filter(item => item.checked).map(item => item.id)
-    
-    if (checkedIds.length === 0) return
-
-    if (!confirm('Remove all checked items?')) return
-
-    try {
-      const { error } = await supabase
-        .from('shopping_list_items')
-        .delete()
-        .in('id', checkedIds)
-
-      if (error) throw error
-      fetchShoppingItems()
-    } catch (error) {
-      console.error('Error clearing checked items:', error)
-    }
-  }
+  // Removed clearCheckedItems and all mass selection logic
 
   if (loading) {
     return <div className="loading">Loading shopping list...</div>
@@ -207,20 +206,29 @@ export default function ShoppingList() {
           <p className="subtitle">Items you need to buy</p>
         </div>
         <div className="header-actions">
-          {shoppingItems.length > 0 && (
-            <button 
-              onClick={() => fetchKrogerPrices(shoppingItems)} 
-              className="refresh-prices-btn"
-              disabled={loadingPrices}
-            >
-              {loadingPrices ? '🔄 Loading...' : '💲 Get Prices'}
-            </button>
-          )}
-          {shoppingItems.some(item => item.checked) && (
-            <button onClick={clearCheckedItems} className="clear-btn">
-              Clear Checked Items
-            </button>
-          )}
+          {/* Store selector */}
+          <div className="store-selector" title="Choose your Kroger store for accurate pricing and aisles">
+            <label style={{ marginRight: '8px' }}>Store:</label>
+            <select value={selectedStore} onChange={onChangeStore}>
+              {stores.length === 0 && (
+                <option value={selectedStore}>Loading stores…</option>
+              )}
+              {stores.map((s) => (
+                <option key={s.locationId} value={s.locationId}>
+                  {s.name} • {s.address?.city || ''}
+                </option>
+              ))}
+            </select>
+          </div>
+            {shoppingItems.length > 0 && (
+              <button 
+                onClick={() => fetchKrogerPrices(shoppingItems)} 
+                className="refresh-prices-btn"
+                disabled={loadingPrices}
+              >
+                {loadingPrices ? '🔄 Loading...' : '💲 Get Prices'}
+              </button>
+            )}
         </div>
       </div>
 
@@ -285,13 +293,7 @@ export default function ShoppingList() {
           shoppingItems.map((item) => {
             const krogerProduct = priceData[item.ingredient_name]
             return (
-              <div key={item.id} className={`shopping-item ${item.checked ? 'checked' : ''}`}>
-                <input
-                  type="checkbox"
-                  checked={item.checked}
-                  onChange={() => toggleChecked(item.id, item.checked)}
-                  className="checkbox"
-                />
+              <div key={item.id} className="shopping-item">
                 {krogerProduct?.image && (
                   <img 
                     src={krogerProduct.image} 
@@ -309,6 +311,8 @@ export default function ShoppingList() {
                     <div className="kroger-info">
                       <p className="product-desc">{krogerProduct.description}</p>
                       <p className="product-brand">{krogerProduct.brand} • {krogerProduct.size}</p>
+                        {/* Removed aisle badge */}
+                        {/* Removed aisle info */}
                       <div className="price-info">
                         {krogerProduct.onSale && (
                           <span className="regular-price">${krogerProduct.regularPrice.toFixed(2)}</span>
