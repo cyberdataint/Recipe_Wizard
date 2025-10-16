@@ -109,6 +109,15 @@ export default function Chat() {
   const tools = [
     {
       functionDeclarations: [
+         {
+           name: 'get_pantry_items',
+           description: 'Get all items currently in the user\'s pantry. Use this when the user asks what ingredients they have, what\'s in their pantry, or wants recipe suggestions based on available ingredients.',
+           parameters: {
+             type: 'object',
+             properties: {},
+             required: []
+           }
+         },
         {
           name: 'add_to_shopping_list',
           description: 'Add one or more items to the user\'s shopping list. Use this when the user asks to add ingredients they need to buy.',
@@ -168,6 +177,51 @@ export default function Chat() {
     console.log('Executing function:', name, 'with args:', args)
     setFunctionStatus(`Executing: ${name}...`)
     
+     if (name === 'get_pantry_items') {
+       setFunctionStatus('Checking your pantry...')
+       try {
+         const { data, error } = await supabase
+           .from('pantry_items')
+           .select('*')
+           .eq('user_id', user.id)
+           .order('created_at', { ascending: false })
+       
+         if (error) throw error
+       
+         if (!data || data.length === 0) {
+           setFunctionStatus('✓ Pantry is empty')
+           setTimeout(() => setFunctionStatus(''), 2000)
+           return { 
+             success: true, 
+             items: [],
+             message: 'Your pantry is currently empty. You can add items from the Pantry tab or ask me to add them!'
+           }
+         }
+       
+         const pantryList = data.map(item => ({
+           name: item.ingredient_name,
+           quantity: item.quantity || 'some',
+           unit: item.unit || '',
+           category: item.category || 'uncategorized'
+         }))
+       
+         setFunctionStatus(`✓ Found ${data.length} items in pantry`)
+         setTimeout(() => setFunctionStatus(''), 2000)
+       
+         return { 
+           success: true, 
+           items: pantryList,
+           count: data.length,
+           message: `Found ${data.length} items in your pantry`
+         }
+       } catch (e) {
+         console.error('Failed to get pantry items:', e)
+         setFunctionStatus('Error loading pantry')
+         setTimeout(() => setFunctionStatus(''), 3000)
+         return { error: 'Failed to load pantry items', details: e.message }
+       }
+     }
+   
     if (name === 'add_to_shopping_list') {
       const { items } = args
       if (!items || !Array.isArray(items)) {
