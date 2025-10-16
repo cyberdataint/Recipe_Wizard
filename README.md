@@ -69,3 +69,26 @@ npm run preview
 - React 
 - Vite 
 - Spoonacular API
+
+## App structure (modular)
+
+- `src/App.jsx` — thin orchestrator. Wraps `AuthProvider`, renders `TopNav`, and switches tabs.
+- `src/components/Recipes.jsx` — recipe search UI and modal logic.
+- `src/components/Pantry.jsx` — pantry (Supabase-backed).
+- `src/components/ShoppingList.jsx` — shopping list (Supabase-backed).
+- `src/components/Auth.jsx` — sign in/up UI.
+- `src/components/TopNav.jsx` — simple tab navigation and sign-out.
+- `src/contexts/AuthContext.jsx` — Supabase auth provider + hook.
+
+Remove a feature by deleting its component and removing the tab in `App.jsx`.
+
+## Environment
+
+Create `.env` with:
+
+```
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_ANON_KEY=...
+VITE_SPOONACULAR_API_KEY=...
+```
+

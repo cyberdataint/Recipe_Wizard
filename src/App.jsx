@@ -1,304 +1,45 @@
 import { useState } from 'react'
 import './App.css'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
+import Auth from './components/Auth'
+import Pantry from './components/Pantry'
+import ShoppingList from './components/ShoppingList'
+import Recipes from './components/Recipes'
+import TopNav from './components/TopNav'
 
-function App() {
-  const [query, setQuery] = useState('')
-  const [recipes, setRecipes] = useState([])
-  const [loading, setLoading] = useState(false)
-  const [selectedRecipe, setSelectedRecipe] = useState(null)
-  const [loadingDetails, setLoadingDetails] = useState(false)
-  const [searchType, setSearchType] = useState('name') // 'name' or 'ingredient'
-  const API_KEY = '6b0f70086a7b4094ae3c567e2d3b3445'
+function AppShell() {
+  const { user, signOut } = useAuth()
+  const [tab, setTab] = useState('recipes')
 
-  const handleSearch = async (e) => {
-    e.preventDefault()
-    if (!query.trim()) return
-    setLoading(true)
-    setSelectedRecipe(null)
-    try {
-      let recipesData = []
-      if (searchType === 'ingredient') {
-        // Use the correct endpoint for ingredient search
-        const url = `https://api.spoonacular.com/recipes/findByIngredients?ingredients=${encodeURIComponent(query)}&number=9&ranking=1&ignorePantry=true&apiKey=${API_KEY}`
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        })
-        if (!response.ok) {
-          throw new Error('Failed to fetch recipes')
-        }
-        recipesData = await response.json()
-        setRecipes(recipesData)
-        if (recipesData.length === 0) {
-          alert('No recipes found. Try a different search!')
-        }
-      } else {
-        // Search by recipe name
-        const url = `https://api.spoonacular.com/recipes/complexSearch?query=${encodeURIComponent(query)}&number=9&addRecipeInformation=true&fillIngredients=true&apiKey=${API_KEY}`
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        })
-        if (!response.ok) {
-          throw new Error('Failed to fetch recipes')
-        }
-        const data = await response.json()
-        setRecipes(data.results || [])
-        if ((data.results || []).length === 0) {
-          alert('No recipes found. Try a different search!')
-        }
-      }
-    } catch (error) {
-      console.error('Error:', error)
-      alert('Sorry, I encountered an error. Please try again.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fetchRecipeDetails = async (recipeId) => {
-    setLoadingDetails(true)
-    
-    try {
-      const response = await fetch(
-        `https://api.spoonacular.com/recipes/${recipeId}/information?includeNutrition=true&apiKey=${API_KEY}`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        }
-      )
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch recipe details')
-      }
-      
-      const data = await response.json()
-      setSelectedRecipe(data)
-      
-    } catch (error) {
-      console.error('Error:', error)
-      alert('Sorry, could not load recipe details.')
-    } finally {
-      setLoadingDetails(false)
-    }
+  if (!user) {
+    return (
+      <div className="app">
+        <TopNav current={tab} onChange={setTab} isAuthed={false} />
+        <Auth />
+      </div>
+    )
   }
 
   return (
     <div className="app">
+      <TopNav current={tab} onChange={setTab} onSignOut={signOut} isAuthed={true} />
       <header className="app-header">
-        <h1>🍳 Recipe Wizard</h1>
-        <p>Search for delicious recipes with detailed ingredients!</p>
+        {tab === 'recipes' && <><h1>🍳 Recipe Wizard</h1><p>Search for delicious recipes with detailed ingredients!</p></>}
+        {tab === 'pantry' && <><h1>🥫 Pantry</h1><p>Manage ingredients you already have.</p></>}
+        {tab === 'shopping' && <><h1>🛒 Shopping List</h1><p>Track what you need to buy.</p></>}
       </header>
-
-      <div className="main-container">
-        <form onSubmit={handleSearch} className="search-form">
-          <div className="search-type-toggle">
-            <label>
-              <input
-                type="radio"
-                name="searchType"
-                value="name"
-                checked={searchType === 'name'}
-                onChange={() => setSearchType('name')}
-                disabled={loading}
-              />
-              Search by Name
-            </label>
-            <label>
-              <input
-                type="radio"
-                name="searchType"
-                value="ingredient"
-                checked={searchType === 'ingredient'}
-                onChange={() => setSearchType('ingredient')}
-                disabled={loading}
-              />
-              Search by Ingredient(s)
-            </label>
-          </div>
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={searchType === 'ingredient' ? "Enter ingredient(s), e.g. chicken, rice" : "Search for recipes (e.g., pasta, chicken, dessert)..."}
-            className="search-input"
-            disabled={loading}
-          />
-          <button 
-            type="submit" 
-            className="search-button"
-            disabled={loading || !query.trim()}
-          >
-            {loading ? '🔍 Searching...' : '🔍 Search'}
-          </button>
-        </form>
-
-        {recipes.length === 0 && !loading && (
-          <div className="welcome-message">
-            <h2>Welcome to Recipe Wizard!</h2>
-            <p>Search for recipes by name, ingredients, or cuisine type:</p>
-            <div className="example-searches">
-              <button onClick={() => { setQuery('pasta carbonara'); }}>🍝 Pasta</button>
-              <button onClick={() => { setQuery('chicken curry'); }}>🍛 Chicken</button>
-              <button onClick={() => { setQuery('chocolate cake'); }}>🍰 Dessert</button>
-              <button onClick={() => { setQuery('healthy salad'); }}>🥗 Healthy</button>
-            </div>
-          </div>
-        )}
-
-        {loading && (
-          <div className="loading">
-            <div className="spinner"></div>
-            <p>Searching for recipes...</p>
-          </div>
-        )}
-
-        {recipes.length > 0 && (
-          <div className="recipes-grid">
-            {recipes.map((recipe) => (
-              <div 
-                key={recipe.id} 
-                className="recipe-card"
-                onClick={() => fetchRecipeDetails(recipe.id)}
-              >
-                <img 
-                  src={recipe.image} 
-                  alt={recipe.title || recipe.name}
-                  className="recipe-image"
-                />
-                <div className="recipe-info">
-                  <h3>{recipe.title || recipe.name}</h3>
-                  <div className="recipe-meta">
-                    {recipe.readyInMinutes && (
-                      <span>⏱️ {recipe.readyInMinutes} min</span>
-                    )}
-                    {recipe.servings && (
-                      <span>🍽️ {recipe.servings} servings</span>
-                    )}
-                    {recipe.usedIngredientCount !== undefined && (
-                      <span>✅ {recipe.usedIngredientCount} used</span>
-                    )}
-                    {recipe.missedIngredientCount !== undefined && (
-                      <span>❌ {recipe.missedIngredientCount} missing</span>
-                    )}
-                  </div>
-                  <button className="view-details-btn">
-                    View Recipe Details →
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {selectedRecipe && (
-          <div className="modal-overlay" onClick={() => setSelectedRecipe(null)}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-              <button className="modal-close" onClick={() => setSelectedRecipe(null)}>
-                ✕
-              </button>
-              
-              {loadingDetails ? (
-                <div className="loading">
-                  <div className="spinner"></div>
-                  <p>Loading recipe details...</p>
-                </div>
-              ) : (
-                <>
-                  <h2>{selectedRecipe.title}</h2>
-                  <img 
-                    src={selectedRecipe.image} 
-                    alt={selectedRecipe.title}
-                    className="modal-image"
-                  />
-                  
-                  <div className="recipe-stats">
-                    {selectedRecipe.readyInMinutes && (
-                      <div className="stat">
-                        <span className="stat-icon">⏱️</span>
-                        <span>{selectedRecipe.readyInMinutes} minutes</span>
-                      </div>
-                    )}
-                    {selectedRecipe.servings && (
-                      <div className="stat">
-                        <span className="stat-icon">🍽️</span>
-                        <span>{selectedRecipe.servings} servings</span>
-                      </div>
-                    )}
-                    {selectedRecipe.pricePerServing && (
-                      <div className="stat">
-                        <span className="stat-icon">💰</span>
-                        <span>${(selectedRecipe.pricePerServing / 100).toFixed(2)} per serving</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="recipe-section">
-                    <h3>📋 Ingredients</h3>
-                    <ul className="ingredients-list">
-                      {selectedRecipe.extendedIngredients?.map((ingredient, index) => (
-                        <li key={index}>
-                          <span className="ingredient-amount">{ingredient.original}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  {selectedRecipe.analyzedInstructions?.[0]?.steps && (
-                    <div className="recipe-section">
-                      <h3>👨‍🍳 Instructions</h3>
-                      <ol className="instructions-list">
-                        {selectedRecipe.analyzedInstructions[0].steps.map((step) => (
-                          <li key={step.number}>
-                            <p>{step.step}</p>
-                          </li>
-                        ))}
-                      </ol>
-                    </div>
-                  )}
-
-                  {selectedRecipe.nutrition?.nutrients && (
-                    <div className="recipe-section">
-                      <h3>📊 Nutrition (per serving)</h3>
-                      <div className="nutrition-grid">
-                        {selectedRecipe.nutrition.nutrients.slice(0, 8).map((nutrient, index) => (
-                          <div key={index} className="nutrient">
-                            <span className="nutrient-name">{nutrient.name}</span>
-                            <span className="nutrient-value">
-                              {nutrient.amount.toFixed(1)}{nutrient.unit}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedRecipe.sourceUrl && (
-                    <div className="recipe-section">
-                      <a 
-                        href={selectedRecipe.sourceUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="source-link"
-                      >
-                        🔗 View Original Recipe
-                      </a>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
+      {tab === 'recipes' && <Recipes />}
+      {tab === 'pantry' && <div className="main-container"><Pantry /></div>}
+      {tab === 'shopping' && <div className="main-container"><ShoppingList /></div>}
     </div>
   )
 }
 
-export default App
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppShell />
+    </AuthProvider>
+  )
+}
+
