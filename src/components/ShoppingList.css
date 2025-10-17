@@ -7,7 +7,7 @@
 
 .header {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: flex-start;
   margin-bottom: 2rem;
 }
@@ -18,16 +18,16 @@
   flex-wrap: wrap;
 }
 
-.shopping-list-container h2 {
+/* .shopping-list-container h2 {
   font-size: 2rem;
   color: #333;
   margin-bottom: 0.1rem;
   margin-top: 0.5rem;
-}
+} */
 
-.subtitle {
+/* .subtitle {
   color: #666;
-}
+} */
 
 .refresh-prices-btn {
   padding: 0.75rem 1.5rem;
@@ -65,6 +65,7 @@
 .cart-total {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
+  border: solid #e0e0e0 1px;
   padding: 0.5rem 1rem;
   border-radius: 8px;
   margin-bottom: 1rem;
@@ -95,9 +96,8 @@
 }
 
 .add-item-form {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1.5fr 1fr;
-  gap: 0.5rem;
+  display: flex;
+  flex-direction: column;
   margin-bottom: 2rem;
   background: white;
   padding: 1.5rem;
@@ -105,14 +105,27 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.add-item-form input {
+.add-item-form .inputs {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1.5fr 1fr;
+  gap: 0.5rem;
+}
+
+.add-item-form .inputs input {
   padding: 0.75rem;
   border: 2px solid #e0e0e0;
   border-radius: 8px;
   font-size: 1rem;
 }
 
-.add-item-form button {
+.add-item-form .add-btn {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+
+.add-item-form .add-btn button {
   padding: 0.75rem 1.5rem;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
@@ -120,6 +133,7 @@
   border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
+  width: 50%;
 }
 
 

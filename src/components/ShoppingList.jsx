@@ -201,15 +201,11 @@ export default function ShoppingList() {
   return (
     <div className="shopping-list-container">
       <div className="header">
-        <div>
-          <h2>🛒 Shopping List</h2>
-          <p className="subtitle">Items you need to buy</p>
-        </div>
         <div className="header-actions">
           {/* Store selector */}
           <div className="store-selector" title="Choose your Kroger store for accurate pricing and aisles">
-            <label style={{ marginRight: '8px' }}>Store:</label>
-            <select value={selectedStore} onChange={onChangeStore}>
+            <label style={{ marginRight: '8px', color: "white" }}>Store:</label>
+            <select style={{ padding: '0.75rem', fontSize:'1rem', borderRadius: '8px', border: 'none' }} value={selectedStore} onChange={onChangeStore}>
               {stores.length === 0 && (
                 <option value={selectedStore}>Loading stores…</option>
               )}
@@ -257,32 +253,36 @@ export default function ShoppingList() {
 
       {/* Add New Item Form */}
       <form onSubmit={addShoppingItem} className="add-item-form">
-        <input
-          type="text"
-          value={newItem.ingredient_name}
-          onChange={(e) => setNewItem({ ...newItem, ingredient_name: e.target.value })}
-          placeholder="Ingredient name"
-          required
-        />
-        <input
-          type="text"
-          value={newItem.quantity}
-          onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
-          placeholder="Quantity"
-        />
-        <input
-          type="text"
-          value={newItem.unit}
-          onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })}
-          placeholder="Unit"
-        />
-        <input
-          type="text"
-          value={newItem.recipe_name}
-          onChange={(e) => setNewItem({ ...newItem, recipe_name: e.target.value })}
-          placeholder="For recipe (optional)"
-        />
-        <button type="submit">Add Item</button>
+        <div className='inputs'>
+          <input
+            type="text"
+            value={newItem.ingredient_name}
+            onChange={(e) => setNewItem({ ...newItem, ingredient_name: e.target.value })}
+            placeholder="Ingredient name"
+            required
+          />
+          <input
+            type="text"
+            value={newItem.quantity}
+            onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
+            placeholder="Quantity"
+          />
+          <input
+            type="text"
+            value={newItem.unit}
+            onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })}
+            placeholder="Unit"
+          />
+          <input
+            type="text"
+            value={newItem.recipe_name}
+            onChange={(e) => setNewItem({ ...newItem, recipe_name: e.target.value })}
+            placeholder="For recipe (optional)"
+          />
+        </div>
+        <div className='add-btn'>
+          <button type="submit">Add Item</button>
+        </div>
       </form>
 
       {/* Shopping Items List */}
@@ -339,6 +339,7 @@ export default function ShoppingList() {
                   <button 
                     onClick={() => deleteShoppingItem(item.id)}
                     className="delete-btn"
+                    title="Delete item"
                   >
                     🗑️
                   </button>

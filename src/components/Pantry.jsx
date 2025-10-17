@@ -139,8 +139,6 @@ export default function Pantry() {
 
   return (
     <div className="pantry-container">
-      <h2>🥫 My Pantry</h2>
-      <p className="subtitle">Items you have on hand</p>
 
       {/* Spoonacular Ingredient Search */}
       <div className="ingredient-search">
@@ -232,6 +230,7 @@ export default function Pantry() {
               <button 
                 onClick={() => deletePantryItem(item.id)}
                 className="delete-btn"
+                title="Delete item"
               >
                 🗑️
               </button>

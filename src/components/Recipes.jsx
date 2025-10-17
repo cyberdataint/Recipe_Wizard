@@ -71,7 +71,7 @@ export default function Recipes() {
         </div>
       )}
 
-      <form onSubmit={handleSearch} className="search-form">
+      <div className='search-container'>
         <div className="search-type-toggle">
           <label>
             <input
@@ -96,26 +96,29 @@ export default function Recipes() {
             Search by Ingredient(s)
           </label>
         </div>
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={
-            searchType === 'ingredient'
-              ? 'Enter ingredient(s), e.g. chicken, rice'
-              : 'Search for recipes (e.g., pasta, chicken, dessert)...'
-          }
-          className="search-input"
-          disabled={loading || !API_KEY}
-        />
-        <button
-          type="submit"
-          className="search-button"
-          disabled={loading || !query.trim() || !API_KEY}
-        >
-          {loading ? '🔍 Searching...' : '🔍 Search'}
-        </button>
-      </form>
+
+        <form onSubmit={handleSearch} className="search-form">
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={
+              searchType === 'ingredient'
+                ? 'Enter ingredient(s), e.g. chicken, rice'
+                : 'Search for recipes (e.g., pasta, chicken, dessert)...'
+            }
+            className="search-input"
+            disabled={loading || !API_KEY}
+          />
+          <button
+            type="submit"
+            className="search-button"
+            disabled={loading || !query.trim() || !API_KEY}
+          >
+            {loading ? '🔍 Searching...' : '🔍 Search'}
+          </button>
+        </form>
+      </div>
 
       {recipes.length === 0 && !loading && (
         <div className="welcome-message">
