@@ -110,35 +110,48 @@
   cursor: pointer;
 }
 
+
+/* Compact grid for pantry items */
 .items-list {
   display: grid;
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.75rem;
 }
 
 .pantry-item {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: center;
   background: white;
-  padding: 1.5rem;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s;
+  padding: 0.75rem;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  min-width: 0;
+  position: relative;
+  transition: box-shadow 0.2s;
 }
 
 .pantry-item:hover {
-  transform: translateX(5px);
+  box-shadow: 0 2px 8px rgba(102,126,234,0.18);
+}
+
+.item-info {
+  width: 100%;
+  text-align: center;
 }
 
 .item-info h4 {
-  font-size: 1.1rem;
+  font-size: 1rem;
   color: #333;
-  margin-bottom: 0.5rem;
+  margin: 0.25rem 0 0.15rem 0;
+  font-weight: 600;
+  line-height: 1.2;
 }
 
 .item-info p {
   color: #666;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
+  margin: 0.1rem 0;
 }
 
 .category {
@@ -148,29 +161,33 @@
 
 .notes {
   font-style: italic;
-  margin-top: 0.5rem;
+  margin-top: 0.2rem;
+  font-size: 0.75rem;
 }
 
 .delete-btn {
-  background: #dc3545;
-  color: white;
+  background: #f3f4f6;
+  color: #333;
   border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 1.2rem;
+  font-size: 1rem;
+  transition: background 0.15s;
+  margin-top: 0.2rem;
 }
 
 .delete-btn:hover {
-  background: #c82333;
+  background: #dc3545;
+  color: white;
 }
 
 .empty-message {
   text-align: center;
   color: #999;
-  padding: 3rem;
+  padding: 2rem;
   background: white;
-  border-radius: 12px;
+  border-radius: 10px;
 }
 
 @media (max-width: 768px) {
