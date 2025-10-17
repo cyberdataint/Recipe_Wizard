@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import krogerAPI from '../KrogerAPI'
 import { useAuth } from '../contexts/AuthContext'
 import supabase from '../Supabase'
 import './Pantry.css'
@@ -6,6 +7,7 @@ import './Pantry.css'
 export default function Pantry() {
   const { user } = useAuth()
   const [pantryItems, setPantryItems] = useState([])
+  const [itemImages, setItemImages] = useState({})
   const [loading, setLoading] = useState(true)
   const [newItem, setNewItem] = useState({
     ingredient_name: '',
@@ -36,6 +38,23 @@ export default function Pantry() {
 
       if (error) throw error
       setPantryItems(data || [])
+
+      // Fetch Kroger images for each item
+      if (data && data.length > 0) {
+        const imageResults = {}
+        await Promise.all(
+          data.map(async (item) => {
+            try {
+              const products = await krogerAPI.searchProducts(item.ingredient_name)
+              const img = products?.[0]?.images?.[0]?.sizes?.[0]?.url || null
+              imageResults[item.id] = img
+            } catch {
+              imageResults[item.id] = null
+            }
+          })
+        )
+        setItemImages(imageResults)
+      }
     } catch (error) {
       console.error('Error fetching pantry items:', error)
     } finally {
@@ -120,8 +139,6 @@ export default function Pantry() {
 
   return (
     <div className="pantry-container">
-      <h2>🥫 My Pantry</h2>
-      <p className="subtitle">Items you have on hand</p>
 
       {/* Spoonacular Ingredient Search */}
       <div className="ingredient-search">
@@ -194,6 +211,14 @@ export default function Pantry() {
         ) : (
           pantryItems.map((item) => (
             <div key={item.id} className="pantry-item">
+              {itemImages[item.id] && (
+                <img 
+                  src={itemImages[item.id]} 
+                  alt={item.ingredient_name}
+                  className="pantry-product-image"
+                  style={{ width: '60px', height: '60px', objectFit: 'contain', marginRight: '12px' }}
+                />
+              )}
               <div className="item-info">
                 <h4>{item.ingredient_name}</h4>
                 <p>
@@ -205,6 +230,7 @@ export default function Pantry() {
               <button 
                 onClick={() => deletePantryItem(item.id)}
                 className="delete-btn"
+                title="Delete item"
               >
                 🗑️
               </button>
