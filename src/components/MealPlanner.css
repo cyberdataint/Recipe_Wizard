@@ -19,6 +19,11 @@
   margin-bottom: 0.5rem;
 }
 
+.planner-controls .store-row {
+  justify-content: flex-start;
+  gap: 0.75rem;
+}
+
 .planner-controls label { font-weight: 600; color: #333; }
 .planner-controls input[type="number"],
 .planner-controls select {
@@ -31,6 +36,88 @@
 .pdf-btn { padding: 0.7rem 1.1rem; background: #2f855a; color: #fff; border: 0; border-radius: 8px; font-weight: 700; }
 .warn { color: #856404; background: #fff3cd; padding: 6px 10px; border-radius: 6px; }
 .error { color: #721c24; background: #f8d7da; padding: 6px 10px; border-radius: 6px; }
+
+/* Advanced options collapsible */
+.advanced {
+  margin-top: 0.25rem;
+}
+.advanced summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-weight: 700;
+  color: #374151;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.advanced summary::-webkit-details-marker { display: none; }
+.advanced summary::before {
+  content: '▸';
+  display: inline-block;
+  transform: translateY(-1px);
+  color: #6b7280;
+}
+.advanced[open] summary::before { content: '▾'; }
+.advanced .content {
+  padding: 8px 4px 0 4px;
+}
+
+/* Advanced sub-tabs */
+.adv-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 6px 0 8px 0;
+}
+.adv-tab {
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #374151;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.adv-tab.active {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+  color: #4338ca;
+}
+.adv-pane { padding-top: 4px; }
+.adv-sep {
+  width: 100%;
+  height: 1px;
+  background: #e5e7eb;
+  margin: 8px 0;
+  border-radius: 1px;
+}
+
+/* Chip-style multi-selects */
+.adv-chipgroup { display: flex; flex-wrap: wrap; gap: 8px; }
+label.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #374151;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+label.chip input { display: none; }
+label.chip:hover { background: #f9fafb; }
+label.chip:has(input:checked) {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+  color: #4338ca;
+}
 
 .planner-output {
   display: grid;

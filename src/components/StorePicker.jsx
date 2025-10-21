@@ -95,7 +95,7 @@ export default function StorePicker({ onSelect, initialZip = '', initialLocation
 
   return (
     <div className="storepicker" ref={wrapRef} style={{ position: 'relative' }}>
-      <label style={{ color: 'white' }}>Store:</label>
+      <label className="sp-label">Store</label>
       <input
         className="zip-input"
         type="text"
