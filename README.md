@@ -20,7 +20,7 @@ A modern, full-featured recipe management application built with React and Vite.
 - Node.js (v14 or higher)
 - npm or yarn
 
-### Installation
+### Local Development
 
 1. **Clone the repository**
 ```bash
@@ -51,10 +51,7 @@ npm install
 npm run dev
 ```
 
-5. **Start the Kroger API proxy server** (in a separate terminal)
-```bash
-npm run proxy
-```
+
 
 6. **Open your browser** to `http://localhost:5173` (or the port shown in your terminal)
 
@@ -64,7 +61,7 @@ npm run proxy
 |---------|-------------|
 | `npm install` | Install all dependencies |
 | `npm run dev` | Start Vite development server (port 5173) |
-| `npm run proxy` | Start Kroger API proxy server (port 3001) - Required for pricing |
+
 | `npm run build` | Build for production |
 | `npm run preview` | Preview production build |
 
@@ -78,12 +75,7 @@ npm run proxy
 npm run dev
 ```
 
-**Terminal 2 - Kroger Proxy:**
-```bash
-npm run proxy
-```
 
-> ⚠️ **Note:** The Kroger pricing feature requires the proxy server to be running. Without it, shopping list pricing will be unavailable.
 
 ## 📖 Usage
 

@@ -2,7 +2,7 @@ name: Deploy Vite site to GitHub Pages
 
 on:
   push:
-    branches: [ main ]   # change if your default branch is different
+    branches: [ main, test-pages ]   # now triggers on both main and test-pages
   workflow_dispatch:
 
 permissions:
@@ -26,20 +26,22 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: Recipe_Wizard/package-lock.json
 
       - name: Install deps
-        working-directory: Recipe_Wizard
         run: npm ci
 
       - name: Build
-        working-directory: Recipe_Wizard
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_SPOONACULAR_API_KEY: ${{ secrets.VITE_SPOONACULAR_API_KEY }}
+          VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
         run: npm run build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: Recipe_Wizard/dist
+          path: dist
 
   deploy:
     needs: build

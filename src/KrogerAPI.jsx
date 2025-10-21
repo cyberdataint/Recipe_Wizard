@@ -8,8 +8,9 @@ class KrogerAPI {
   constructor() {
     // Toggle between proxy server (avoids CORS) or direct API calls
     this.useProxy = true
-    this.proxyUrl = 'http://localhost:3001/api/kroger'
-    
+    // Use production proxy URL if deployed, otherwise localhost
+    this.proxyUrl = '/api/kroger'   
+
     // Direct API configuration (only used if useProxy=false)
     this.clientId = import.meta.env.VITE_KROGER_CLIENT_ID
     this.clientSecret = import.meta.env.VITE_KROGER_CLIENT_SECRET

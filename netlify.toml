@@ -1,0 +1,14 @@
+[functions]
+  directory = "netlify/functions"
+
+# Proxy frontend -> function
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/kroger/:splat"
+  status = 200
+
+# SPA fallback
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
