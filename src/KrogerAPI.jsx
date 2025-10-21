@@ -84,7 +84,7 @@ class KrogerAPI {
         return this.accessToken
       }
     } catch (error) {
-      console.error('Kroger auth error:', error)
+        if (import.meta.env.DEV) console.error('Kroger auth error:', error)
       throw error
     }
   }
@@ -135,7 +135,7 @@ class KrogerAPI {
         return data.data || []
       }
     } catch (error) {
-      console.error('Kroger product search error:', error)
+        if (import.meta.env.DEV) console.error('Kroger product search error:', error)
       return []
     }
   }
@@ -206,7 +206,7 @@ class KrogerAPI {
           const batch = await response.json()
           out.push(...batch)
         } catch (error) {
-          console.error('Batch chunk failed, falling back to per-item:', error)
+            if (import.meta.env.DEV) console.error('Batch chunk failed, falling back to per-item:', error)
           const results = await Promise.allSettled(
             chunk.map(ing => this.findIngredient(ing))
           )
@@ -274,7 +274,7 @@ class KrogerAPI {
         return data?.data || []
       }
     } catch (err) {
-      console.error('Kroger locations error:', err)
+        if (import.meta.env.DEV) console.error('Kroger locations error:', err)
       return []
     }
   }

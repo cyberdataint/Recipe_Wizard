@@ -125,6 +125,7 @@ export default function ShoppingList() {
   const fetchKrogerPrices = async (items) => {
     if (!items || items.length === 0) return
     setLoadingPrices(true)
+    // Clear any prior banner; we won't set a new one for Kroger timeouts
     setError('')
     try {
       const ingredientNames = items.map(item => item.ingredient_name)
@@ -138,18 +139,10 @@ export default function ShoppingList() {
         }
       })
       setPriceData(next)
-      if (Object.keys(prices).length === 0) {
-        setError(isLocalhost
-          ? 'No prices found. Make sure the local Kroger proxy is running at http://localhost:3001 (npm run proxy) and check its terminal logs.'
-          : 'No prices found. The Netlify function may be failing to get a token. Ensure KROGER_CLIENT_ID and KROGER_CLIENT_SECRET are set in Netlify, then redeploy with cache cleared. You can also temporarily set KROGER_DEBUG=true and open /api/kroger/env-check.'
-        )
-      }
     } catch (error) {
-      console.error('Error fetching Kroger prices:', error)
-      setError(isLocalhost
-        ? 'Unable to connect to Kroger API. Ensure the local proxy is running at http://localhost:3001 (npm run proxy).'
-        : 'Unable to connect to Kroger API via Netlify function. Verify Netlify env vars (KROGER_CLIENT_ID/SECRET), and check Function logs.'
-      )
+      // Suppress errors in UI; Kroger API can be slow and partial
+      // If needed, enable the log below only in dev:
+      // if (import.meta.env.DEV) console.warn('Kroger pricing fetch warning:', error)
     } finally {
       setLoadingPrices(false)
     }
@@ -250,7 +243,7 @@ export default function ShoppingList() {
               </>
             ) : (
               <>
-                This site uses a Netlify Function as the backend. Ensure <code>KROGER_CLIENT_ID</code> and <code>KROGER_CLIENT_SECRET</code> are configured in Netlify env, then Clear cache and deploy. For troubleshooting, temporarily set <code>KROGER_DEBUG=true</code> and open <code>/api/kroger/env-check</code>.
+                This site uses a serverless function backend. Ensure <code>KROGER_CLIENT_ID</code> and <code>KROGER_CLIENT_SECRET</code> are configured in your hosting platform (Netlify or Cloudflare Pages) and redeploy. For troubleshooting, temporarily set <code>KROGER_DEBUG=true</code> and open <code>/api/kroger/env-check</code>.
               </>
             )}
           </p>
