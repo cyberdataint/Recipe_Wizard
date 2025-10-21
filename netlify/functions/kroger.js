@@ -26,6 +26,30 @@ export async function handler(event) {
     const method = event.httpMethod;
     const sub = subpathFrom(event);
 
+    // ----- DEBUG: GET /api/kroger/env-check (only when KROGER_DEBUG=true) -----
+    if (sub === '/env-check' && method === 'GET') {
+      if (process.env.KROGER_DEBUG !== 'true') return respond(404, { error: 'Not found' });
+      const id = process.env.KROGER_CLIENT_ID || process.env.VITE_KROGER_CLIENT_ID;
+      const secret = process.env.KROGER_CLIENT_SECRET || process.env.VITE_KROGER_CLIENT_SECRET;
+      const scope = process.env.KROGER_SCOPE || 'product.compact';
+
+      const mask = (val) => {
+        if (!val) return null;
+        const s = String(val);
+        if (s.length <= 8) return s[0] + '***' + s[s.length - 1];
+        return s.slice(0, 4) + '***' + s.slice(-4);
+      };
+
+      return respond(200, {
+        hasId: !!id,
+        hasSecret: !!secret,
+        idPreview: mask(id),
+        secretPreview: mask(secret),
+        scope,
+        usingViteVars: !!(process.env.VITE_KROGER_CLIENT_ID || process.env.VITE_KROGER_CLIENT_SECRET),
+      });
+    }
+
     // ----- TOKEN: POST /api/kroger/token -----
     if (sub === '/token' && method === 'POST') {
       const id = process.env.KROGER_CLIENT_ID || process.env.VITE_KROGER_CLIENT_ID;
