@@ -29,6 +29,7 @@ class KrogerAPI {
     }
 
     try {
+<<<<<<< Updated upstream
       const credentials = btoa(`${this.clientId}:${this.clientSecret}`)
       const response = await fetch('https://api.kroger.com/v1/connect/oauth2/token', {
         method: 'POST',
@@ -38,6 +39,39 @@ class KrogerAPI {
         },
         body: 'grant_type=client_credentials&scope=product.compact'
       })
+=======
+      if (this.useProxy) {
+        // Get token from proxy server (server handles credentials)
+        const response = await fetch(`${this.proxyUrl}/token`, { method: 'POST' })
+        if (!response.ok) {
+          // Try to read JSON, else fall back to text so we can see real Kroger errors
+          const raw = await response.text()
+          let errorData
+          try {
+            errorData = raw ? JSON.parse(raw) : {}
+          } catch (e) {
+            errorData = { error: 'non_json_error', raw }
+          }
+          const message = errorData.error_description || errorData.error || `Token fetch failed: ${response.status}`
+          throw new Error(message)
+        }
+        const data = await response.json()
+        this.accessToken = data.access_token
+        // Set expiry 5 minutes before actual expiry for safety
+        this.tokenExpiry = Date.now() + ((data.expires_in - 300) * 1000)
+        return this.accessToken
+      } else {
+        // Direct API call (for local development)
+        const credentials = btoa(`${this.clientId}:${this.clientSecret}`)
+        const response = await fetch('https://api.kroger.com/v1/connect/oauth2/token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Authorization': `Basic ${credentials}`
+          },
+          body: 'grant_type=client_credentials&scope=product.compact'
+        })
+>>>>>>> Stashed changes
 
       if (!response.ok) {
         throw new Error(`Failed to get access token: ${response.status}`)
