@@ -56,7 +56,6 @@ export default function ShoppingList() {
         .from('shopping_list_items')
         .select('*')
         .eq('user_id', user.id)
-  // .order('checked', { ascending: true })
         .order('created_at', { ascending: false })
 
       if (error) throw error

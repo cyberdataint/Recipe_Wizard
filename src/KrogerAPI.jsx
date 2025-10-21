@@ -15,7 +15,7 @@ class KrogerAPI {
     const isLocalhost = isBrowser && /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname)
     const localProxy = import.meta.env.VITE_LOCAL_KROGER_PROXY_URL || 'http://localhost:3001/api/kroger'
     const prodProxy = '/api/kroger'
-    // Use local Node proxy in dev; Netlify Function proxy in prod
+  // Use local Node proxy in dev; serverless function (/api/kroger) in prod
     this.proxyUrl = isLocalhost ? localProxy : prodProxy   
 
     // Direct API configuration (only used if useProxy=false)
@@ -37,8 +37,8 @@ class KrogerAPI {
 
     try {
       if (this.useProxy) {
-        // Get token from proxy server (server handles credentials)
-        // NOTE: Include JSON body + content-type to prevent Netlify Forms from intercepting POST
+  // Get token from proxy server (server handles credentials)
+  // NOTE: Include JSON body + content-type to prevent host "Forms" features from intercepting POST
         const response = await fetch(`${this.proxyUrl}/token`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
