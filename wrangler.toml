@@ -1,16 +1,13 @@
-[functions]
-  directory = "netlify/functions"
+name = "recipe-wizard-pages"
+compatibility_date = "2024-10-01"
 
-# API to function
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/kroger/:splat"
-  status = 200
-  force = true
+# Cloudflare Pages: where your static site is built to
+pages_build_output_dir = "dist"
 
-# SPA fallback
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-  force = true
+[vars]
+# Optionally set local dev defaults here; in production, configure via Pages Project Settings → Environment Variables
+KROGER_SCOPE = "product.compact"
+KROGER_DEBUG = "false"
+KROGER_REQ_TIMEOUT_MS = "2500"
+KROGER_BATCH_DEADLINE_MS = "6500"
+KROGER_BATCH_CONCURRENCY = "3"
