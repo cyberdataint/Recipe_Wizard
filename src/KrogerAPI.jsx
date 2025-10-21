@@ -47,7 +47,10 @@ class KrogerAPI {
         // Get token from proxy server (server handles credentials)
         const response = await fetch(`${this.proxyUrl}/token`, { method: 'POST' })
         if (!response.ok) {
+<<<<<<< Updated upstream
 <<<<<<< HEAD
+=======
+>>>>>>> Stashed changes
           // Try to read JSON, else fall back to text so we can see real Kroger errors
           const raw = await response.text()
           let errorData
@@ -58,10 +61,13 @@ class KrogerAPI {
           }
           const message = errorData.error_description || errorData.error || `Token fetch failed: ${response.status}`
           throw new Error(message)
+<<<<<<< Updated upstream
 =======
           const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
           throw new Error(errorData.error || `Token fetch failed: ${response.status}`)
 >>>>>>> b70ac7ecb76f1a2b0c9d0d1a4d54727b93075921
+=======
+>>>>>>> Stashed changes
         }
         const data = await response.json()
         this.accessToken = data.access_token
