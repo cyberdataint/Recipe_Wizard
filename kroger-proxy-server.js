@@ -1,4 +1,4 @@
-// Simple Node.js proxy server for Kroger API
+// (Removed) Node.js proxy server for Kroger API - not used in GitHub Pages deployment
 // This avoids CORS issues by making API calls server-side
 
 import express from 'express';
@@ -315,7 +315,7 @@ app.post('/api/kroger/batch-search', async (req, res) => {
 });
 
 const server = app.listen(PORT, () => {
-  console.log(`\n🚀 Kroger API proxy running on http://localhost:${PORT}`);
+  // (Removed) Proxy server startup log
   console.log(`\nCredentials status:`);
   console.log(`  Client ID: ${KROGER_CLIENT_ID ? '✓ Loaded' : '✗ Missing'}`);
   console.log(`  Client Secret: ${KROGER_CLIENT_SECRET ? '✓ Loaded' : '✗ Missing'}`);
@@ -334,7 +334,7 @@ server.on('error', (err) => {
     console.error(`\n❌ Port ${PORT} is already in use!`);
     console.log(`\nTo fix this, either:`);
     console.log(`  1. Stop the other process using port ${PORT}`);
-    console.log(`  2. Run with a different port: PORT=3002 npm run proxy\n`);
+  // (Removed) Proxy server port instructions
     process.exit(1);
   } else {
     throw err;

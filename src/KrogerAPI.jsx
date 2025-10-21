@@ -9,10 +9,8 @@ class KrogerAPI {
     // Toggle between proxy server (avoids CORS) or direct API calls
     this.useProxy = true
     // Use production proxy URL if deployed, otherwise localhost
-    this.proxyUrl = import.meta.env.PROD 
-      ? 'https://recipe-wizard-oivb.onrender.com/api/kroger'
-      : 'http://localhost:3001/api/kroger'
-    
+    this.proxyUrl = '/api/kroger'   
+
     // Direct API configuration (only used if useProxy=false)
     this.clientId = import.meta.env.VITE_KROGER_CLIENT_ID
     this.clientSecret = import.meta.env.VITE_KROGER_CLIENT_SECRET
