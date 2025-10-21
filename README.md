@@ -20,21 +20,6 @@ A modern, full-featured recipe management application built with React and Vite.
 - Node.js (v14 or higher)
 - npm or yarn
 
-### Quick Links
-
-📚 **Deployment Guides:**
-- [🚀 Quick Deploy (10 minutes)](./DEPLOY_QUICK.md) - Fast deployment checklist
-- [📖 Complete Deployment Guide](./DEPLOYMENT.md) - Detailed step-by-step instructions
-- [📝 Setup Summary](./SETUP_SUMMARY.md) - Architecture and how everything works together
-
----
-
-## 🌐 Live Demo
-
-**Live Demo:** https://cyberdataint.github.io/Recipe_Wizard/
-
----
-
 ### Local Development
 
 1. **Clone the repository**
