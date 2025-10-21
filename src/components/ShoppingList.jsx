@@ -6,6 +6,8 @@ import './ShoppingList.css'
 
 export default function ShoppingList() {
   const { user } = useAuth()
+  const isBrowser = typeof window !== 'undefined'
+  const isLocalhost = isBrowser && /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname)
   const [shoppingItems, setShoppingItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadingPrices, setLoadingPrices] = useState(false)
@@ -136,11 +138,17 @@ export default function ShoppingList() {
       })
       setPriceData(prices)
       if (Object.keys(prices).length === 0) {
-        setError('No prices found. Make sure the Kroger proxy server is running (see KROGER_PROXY_SETUP.md)')
+        setError(isLocalhost
+          ? 'No prices found. Make sure the local Kroger proxy is running at http://localhost:3001 (npm run proxy) and check its terminal logs.'
+          : 'No prices found. The Netlify function may be failing to get a token. Ensure KROGER_CLIENT_ID and KROGER_CLIENT_SECRET are set in Netlify, then redeploy with cache cleared. You can also temporarily set KROGER_DEBUG=true and open /api/kroger/env-check.'
+        )
       }
     } catch (error) {
       console.error('Error fetching Kroger prices:', error)
-      setError('Unable to connect to Kroger API. Make sure the proxy server is running on http://localhost:3001')
+      setError(isLocalhost
+        ? 'Unable to connect to Kroger API. Ensure the local proxy is running at http://localhost:3001 (npm run proxy).'
+        : 'Unable to connect to Kroger API via Netlify function. Verify Netlify env vars (KROGER_CLIENT_ID/SECRET), and check Function logs.'
+      )
     } finally {
       setLoadingPrices(false)
     }
@@ -234,8 +242,16 @@ export default function ShoppingList() {
           <strong>⚠️ Pricing Unavailable</strong>
           <p>{error}</p>
           <p className="error-solution">
-            <strong>Solution:</strong> The Kroger API requires server-side authentication. 
-            To enable pricing, you'll need to set up a simple Node.js proxy server that makes the API calls on behalf of the frontend.
+            <strong>Solution:</strong>{' '}
+            {isLocalhost ? (
+              <>
+                Use the local Node proxy to avoid exposing secrets in the browser. Start it with <code>npm run proxy</code> (default: http://localhost:3001). The app auto-targets it on localhost.
+              </>
+            ) : (
+              <>
+                This site uses a Netlify Function as the backend. Ensure <code>KROGER_CLIENT_ID</code> and <code>KROGER_CLIENT_SECRET</code> are configured in Netlify env, then Clear cache and deploy. For troubleshooting, temporarily set <code>KROGER_DEBUG=true</code> and open <code>/api/kroger/env-check</code>.
+              </>
+            )}
           </p>
         </div>
       )}

@@ -38,7 +38,12 @@ class KrogerAPI {
     try {
       if (this.useProxy) {
         // Get token from proxy server (server handles credentials)
-        const response = await fetch(`${this.proxyUrl}/token`, { method: 'POST' })
+        // NOTE: Include JSON body + content-type to prevent Netlify Forms from intercepting POST
+        const response = await fetch(`${this.proxyUrl}/token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}'
+        })
         if (!response.ok) {
           // Try to read JSON, else fall back to text so we can see real Kroger errors
           const raw = await response.text()
