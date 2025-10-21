@@ -45,7 +45,16 @@ const PORT = process.env.PORT || 3001;
 
 // Enable CORS for your frontend (allow multiple ports for flexibility)
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://localhost:5176', 'http://localhost:5177', 'http://localhost:5178', 'http://localhost:5179'],
+  origin: [
+    'http://localhost:5173', 
+    'http://localhost:5174', 
+    'http://localhost:5175', 
+    'http://localhost:5176', 
+    'http://localhost:5177', 
+    'http://localhost:5178', 
+    'http://localhost:5179',
+    'https://cyberdataint.github.io'
+  ],
   credentials: true
 }));
 

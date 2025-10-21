@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: recipe-wizard-kroger-proxy
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node kroger-proxy-server.js
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: VITE_KROGER_CLIENT_ID
+        sync: false
+      - key: VITE_KROGER_CLIENT_SECRET
+        sync: false
+      - key: KROGER_HEADERS_MODE
+        value: browser
