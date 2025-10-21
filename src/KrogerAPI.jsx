@@ -144,9 +144,7 @@ class KrogerAPI {
   async findIngredient(ingredientName) {
     const products = await this.searchProducts(ingredientName, this.locationId)
     // Debug: log raw product response to inspect aisle info
-    if (products.length > 0) {
-      console.log('Raw Kroger product:', products[0]);
-    }
+    // (silenced in production)
     if (products.length === 0) {
       return null
     }
@@ -202,9 +200,7 @@ class KrogerAPI {
           throw new Error(`Batch search failed: ${response.status}`)
         }
 
-        const batchResults = await response.json();
-        // Debug: log all batch product results
-        console.log('Batch Kroger products:', batchResults);
+  const batchResults = await response.json();
         return batchResults;
       } catch (error) {
         console.error('Proxy batch search error:', error)
@@ -225,8 +221,7 @@ class KrogerAPI {
         ingredients.map(ing => this.findIngredient(ing))
       )
 
-      // Debug: log all batch product results
-      console.log('Batch Kroger products:', results);
+      // (silenced in production)
       return results.map((result, index) => ({
         ingredient: ingredients[index],
         product: result.status === 'fulfilled' ? result.value : null,
