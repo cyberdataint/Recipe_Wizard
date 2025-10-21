@@ -12,6 +12,15 @@ function respond(status, data, extraHeaders = {}) {
   };
 }
 
+function normalizeScope(raw) {
+  const s = (raw || 'product.compact').trim();
+  // Fix common typo and allow space-separated scopes
+  return s
+    .split(/\s+/)
+    .map(tok => tok.replace(/campact/g, 'compact'))
+    .join(' ');
+}
+
 // Extract the part after "/kroger", e.g. "/products"
 function subpathFrom(event) {
   // Examples:
@@ -31,7 +40,8 @@ export async function handler(event) {
       if (process.env.KROGER_DEBUG !== 'true') return respond(404, { error: 'Not found' });
       const id = process.env.KROGER_CLIENT_ID || process.env.VITE_KROGER_CLIENT_ID;
       const secret = process.env.KROGER_CLIENT_SECRET || process.env.VITE_KROGER_CLIENT_SECRET;
-      const scope = process.env.KROGER_SCOPE || 'product.compact';
+      const scopeRaw = process.env.KROGER_SCOPE || 'product.compact';
+      const scope = normalizeScope(scopeRaw);
 
       const mask = (val) => {
         if (!val) return null;
@@ -45,7 +55,8 @@ export async function handler(event) {
         hasSecret: !!secret,
         idPreview: mask(id),
         secretPreview: mask(secret),
-        scope,
+        scopeRaw,
+        scopeEffective: scope,
         usingViteVars: !!(process.env.VITE_KROGER_CLIENT_ID || process.env.VITE_KROGER_CLIENT_SECRET),
       });
     }
@@ -54,7 +65,7 @@ export async function handler(event) {
     if (sub === '/token' && (method === 'POST' || method === 'GET')) {
       const id = process.env.KROGER_CLIENT_ID || process.env.VITE_KROGER_CLIENT_ID;
       const secret = process.env.KROGER_CLIENT_SECRET || process.env.VITE_KROGER_CLIENT_SECRET;
-      const scope = process.env.KROGER_SCOPE || 'product.compact';
+      const scope = normalizeScope(process.env.KROGER_SCOPE);
 
       if (!id || !secret) {
         return respond(500, { error: 'Missing KROGER_CLIENT_ID / KROGER_CLIENT_SECRET on server' });
