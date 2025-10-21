@@ -1,21 +1,27 @@
-import { useState } from 'react'
+import { useState, lazy, Suspense, startTransition } from 'react'
 import './App.css'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Auth from './components/Auth'
-import Pantry from './components/Pantry'
-import ShoppingList from './components/ShoppingList'
-import Recipes from './components/Recipes'
 import TopNav from './components/TopNav'
-import Chat from './components/Chat'
+
+// Lazy-load heavy sections so the auth page stays snappy
+const Pantry = lazy(() => import('./components/Pantry'))
+const ShoppingList = lazy(() => import('./components/ShoppingList'))
+const Recipes = lazy(() => import('./components/Recipes'))
+const Chat = lazy(() => import('./components/Chat'))
 
 function AppShell() {
   const { user, signOut } = useAuth()
   const [tab, setTab] = useState('recipes')
 
+  const changeTab = (next) => {
+    startTransition(() => setTab(next))
+  }
+
   if (!user) {
     return (
       <div className="app">
-        <TopNav current={tab} onChange={setTab} isAuthed={false} />
+        <TopNav current={tab} onChange={changeTab} isAuthed={false} />
         <Auth />
       </div>
     )
@@ -23,18 +29,19 @@ function AppShell() {
 
   return (
     <div className="app">
-      <TopNav current={tab} onChange={setTab} onSignOut={signOut} isAuthed={true} />
+      <TopNav current={tab} onChange={changeTab} onSignOut={signOut} isAuthed={true} />
       <header className="app-header">
         {tab === 'recipes' && <><h1>🍳 Recipe Wizard</h1><p>Search for delicious recipes with detailed ingredients!</p></>}
         {tab === 'pantry' && <><h1>🥫 Pantry</h1><p>Manage ingredients you already have.</p></>}
         {tab === 'shopping' && <><h1>🛒 Shopping List</h1><p>Track what you need to buy.</p></>}
       </header>
-      {tab === 'recipes' && <Recipes />}
-      {tab === 'pantry' && <div className="main-container"><Pantry /></div>}
-      {tab === 'shopping' && <div className="main-container"><ShoppingList /></div>}
-      
-      {/* Floating Chat Widget - always visible when authenticated */}
-      <Chat />
+      <Suspense fallback={null}>
+        {tab === 'recipes' && <Recipes />}
+        {tab === 'pantry' && <div className="main-container"><Pantry /></div>}
+        {tab === 'shopping' && <div className="main-container"><ShoppingList /></div>}
+        {/* Floating Chat Widget - always visible when authenticated */}
+        <Chat />
+      </Suspense>
     </div>
   )
 }

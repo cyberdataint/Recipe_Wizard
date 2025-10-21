@@ -304,10 +304,12 @@ export default function ShoppingList() {
             return (
               <div key={item.id} className="shopping-item">
                 {krogerProduct?.image && (
-                  <img 
-                    src={krogerProduct.image} 
+                  <img
+                    src={krogerProduct.image}
                     alt={item.ingredient_name}
                     className="product-image"
+                    loading="lazy"
+                    decoding="async"
                   />
                 )}
                 <div className="item-info">
