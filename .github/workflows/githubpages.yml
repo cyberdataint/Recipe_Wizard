@@ -2,7 +2,7 @@ name: Deploy Vite site to GitHub Pages
 
 on:
   push:
-    branches: [ main ]   # change if your default branch is different
+    branches: [ main, test-pages ]   # now triggers on both main and test-pages
   workflow_dispatch:
 
 permissions:
