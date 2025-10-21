@@ -21,7 +21,7 @@ class KrogerAPI {
     this.locationId = localStorage.getItem('kroger_location_id') || '01400943'
   }
 
-  // Get OAuth access token
+  // Get OAuth access token (via proxy or direct)
   async getAccessToken() {
     // Return cached token if still valid
     if (this.accessToken && this.tokenExpiry && Date.now() < this.tokenExpiry) {
@@ -29,6 +29,7 @@ class KrogerAPI {
     }
 
     try {
+<<<<<<< HEAD
 <<<<<<< Updated upstream
       const credentials = btoa(`${this.clientId}:${this.clientSecret}`)
       const response = await fetch('https://api.kroger.com/v1/connect/oauth2/token', {
@@ -40,10 +41,13 @@ class KrogerAPI {
         body: 'grant_type=client_credentials&scope=product.compact'
       })
 =======
+=======
+>>>>>>> b70ac7ecb76f1a2b0c9d0d1a4d54727b93075921
       if (this.useProxy) {
         // Get token from proxy server (server handles credentials)
         const response = await fetch(`${this.proxyUrl}/token`, { method: 'POST' })
         if (!response.ok) {
+<<<<<<< HEAD
           // Try to read JSON, else fall back to text so we can see real Kroger errors
           const raw = await response.text()
           let errorData
@@ -54,6 +58,10 @@ class KrogerAPI {
           }
           const message = errorData.error_description || errorData.error || `Token fetch failed: ${response.status}`
           throw new Error(message)
+=======
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+          throw new Error(errorData.error || `Token fetch failed: ${response.status}`)
+>>>>>>> b70ac7ecb76f1a2b0c9d0d1a4d54727b93075921
         }
         const data = await response.json()
         this.accessToken = data.access_token
@@ -71,17 +79,21 @@ class KrogerAPI {
           },
           body: 'grant_type=client_credentials&scope=product.compact'
         })
+<<<<<<< HEAD
 >>>>>>> Stashed changes
+=======
+>>>>>>> b70ac7ecb76f1a2b0c9d0d1a4d54727b93075921
 
-      if (!response.ok) {
-        throw new Error(`Failed to get access token: ${response.status}`)
+        if (!response.ok) {
+          throw new Error(`Failed to get access token: ${response.status}`)
+        }
+
+        const data = await response.json()
+        this.accessToken = data.access_token
+        // Set expiry 5 minutes before actual expiry for safety
+        this.tokenExpiry = Date.now() + ((data.expires_in - 300) * 1000)
+        return this.accessToken
       }
-
-      const data = await response.json()
-      this.accessToken = data.access_token
-      // Set expiry 5 minutes before actual expiry for safety
-      this.tokenExpiry = Date.now() + ((data.expires_in - 300) * 1000)
-      return this.accessToken
     } catch (error) {
       console.error('Kroger auth error:', error)
       throw error
@@ -93,8 +105,17 @@ class KrogerAPI {
     try {
       if (this.useProxy) {
         // Use proxy server to avoid CORS
-  const url = `${this.proxyUrl}/products?term=${encodeURIComponent(query)}&locationId=${locationId}&limit=5`
-        const response = await fetch(url)
+        const token = await this.getAccessToken()
+        const params = new URLSearchParams({ 
+          term: query, 
+          locationId: locationId, 
+          limit: 5 
+        })
+        const response = await fetch(`${this.proxyUrl}/products?${params.toString()}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
         
         if (!response.ok) {
           throw new Error(`Proxy search failed: ${response.status}`)
@@ -174,12 +195,18 @@ class KrogerAPI {
     if (this.useProxy) {
       // Use proxy batch endpoint for better performance
       try {
+        const token = await this.getAccessToken()
         const response = await fetch(`${this.proxyUrl}/batch-search`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify({ ingredients, locationId: this.locationId || '01400943' })
+          body: JSON.stringify({ 
+            terms: ingredients, 
+            locationId: this.locationId || '01400943',
+            limit: 5
+          })
         })
 
         if (!response.ok) {
@@ -222,17 +249,43 @@ class KrogerAPI {
   // List locations near a latitude/longitude
   async listLocations({ lat = 42.66, lon = -83.385, radius = 50, limit = 200, chain = '' } = {}) {
     try {
-      const params = new URLSearchParams({
-        lat: String(lat),
-        lon: String(lon),
-        radius: String(radius),
-        limit: String(limit)
-      })
-      if (chain) params.append('chain', chain)
-      const res = await fetch(`${this.proxyUrl}/locations?${params.toString()}`)
-      if (!res.ok) throw new Error(`Locations fetch failed: ${res.status}`)
-      const data = await res.json()
-      return data?.data || []
+      if (this.useProxy) {
+        // Use proxy server
+        const token = await this.getAccessToken()
+        const params = new URLSearchParams({
+          lat: String(lat),
+          lon: String(lon),
+          radius: String(radius),
+          limit: String(limit)
+        })
+        if (chain) params.append('chain', chain)
+        const res = await fetch(`${this.proxyUrl}/locations?${params.toString()}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+        if (!res.ok) throw new Error(`Locations fetch failed: ${res.status}`)
+        const data = await res.json()
+        return data?.data || []
+      } else {
+        // Direct API call (for local development)
+        const token = await this.getAccessToken()
+        const url = new URL(`${this.baseUrl}/locations`)
+        url.searchParams.append('filter.latLong.near', `${lat},${lon}`)
+        url.searchParams.append('filter.radiusInMiles', String(radius))
+        url.searchParams.append('filter.limit', String(limit))
+        if (chain) url.searchParams.append('filter.chain', chain)
+        
+        const res = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json'
+          }
+        })
+        if (!res.ok) throw new Error(`Locations fetch failed: ${res.status}`)
+        const data = await res.json()
+        return data?.data || []
+      }
     } catch (err) {
       console.error('Kroger locations error:', err)
       return []
