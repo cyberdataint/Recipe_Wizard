@@ -130,13 +130,14 @@ export default function ShoppingList() {
       const ingredientNames = items.map(item => item.ingredient_name)
       krogerAPI.setLocationId(selectedStore)
       const results = await krogerAPI.findMultipleIngredients(ingredientNames)
-      const prices = {}
+      // Merge into existing to prevent flicker when chunks fail/lag
+      const next = { ...priceData }
       results.forEach((result) => {
-        if (result.product) {
-          prices[result.ingredient] = result.product
+        if (result && result.product) {
+          next[result.ingredient] = result.product
         }
       })
-      setPriceData(prices)
+      setPriceData(next)
       if (Object.keys(prices).length === 0) {
         setError(isLocalhost
           ? 'No prices found. Make sure the local Kroger proxy is running at http://localhost:3001 (npm run proxy) and check its terminal logs.'

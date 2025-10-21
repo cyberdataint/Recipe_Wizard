@@ -149,20 +149,94 @@ export async function handler(event) {
     // ----- BATCH SEARCH: POST /api/kroger/batch-search -----
     if (sub === '/batch-search' && method === 'POST') {
       const payload = event.body ? JSON.parse(event.body) : {};
-      const { terms = [], locationId, limit = 5 } = payload;
+      const { terms = [], locationId } = payload;
 
-      const results = [];
-      for (const term of terms) {
-        const url = new URL('https://api.kroger.com/v1/products');
-        url.searchParams.set('filter.term', term);
-        if (locationId) url.searchParams.set('filter.locationId', locationId);
-        url.searchParams.set('filter.limit', String(limit));
-        const resp = await fetch(url, { headers: { Authorization: `Bearer ${bearer}`, Accept: 'application/json' } });
-        const raw = await resp.text();
-        let data; try { data = raw ? JSON.parse(raw) : {}; } catch { data = { error: 'non_json_response', raw }; }
-        results.push({ term, status: resp.status, data });
-      }
-      return respond(200, results);
+      // Limits to keep function under Netlify timeouts
+      const perReqTimeoutMs = Number(process.env.KROGER_REQ_TIMEOUT_MS) || 2500;
+      const deadlineMs = Number(process.env.KROGER_BATCH_DEADLINE_MS) || 6500;
+      const concurrency = Math.max(1, Math.min(5, Number(process.env.KROGER_BATCH_CONCURRENCY) || 3));
+      const started = Date.now();
+
+      // Sanitize and dedupe terms
+      const cleaned = Array.from(new Set(
+        (terms || [])
+          .map(t => (t || '').toString().trim())
+          .filter(t => t.length > 1)
+      ));
+
+      // Helper to shape a single best-match product
+      const shapeProduct = (product) => {
+        if (!product) return null;
+        const firstItem = product.items?.[0] || {};
+        const price = firstItem?.price?.regular || 0;
+        const promoPrice = firstItem?.price?.promo || null;
+        const aisleLoc = firstItem?.aisleLocations?.[0] || null;
+        const aisleParts = [];
+        if (aisleLoc?.number) aisleParts.push(`Aisle ${aisleLoc.number}`);
+        if (aisleLoc?.description) aisleParts.push(aisleLoc.description);
+        if (aisleLoc?.bayNumber) aisleParts.push(`Bay ${aisleLoc.bayNumber}`);
+        const aisleText = aisleParts.length ? aisleParts.join(' • ') : null;
+        return {
+          productId: product.productId,
+          description: product.description,
+          brand: product.brand,
+          price: promoPrice || price,
+          regularPrice: price,
+          onSale: !!promoPrice,
+          size: firstItem?.size || '',
+          image: product.images?.[0]?.sizes?.[0]?.url || null,
+          upc: product.upc,
+          aisle: aisleText,
+          aisleRaw: aisleLoc || null,
+          categories: product.categories || [],
+        };
+      };
+
+      // Worker to fetch one term with timeout
+      const fetchOne = async (term) => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), perReqTimeoutMs);
+        try {
+          const url = new URL('https://api.kroger.com/v1/products');
+          url.searchParams.set('filter.term', term);
+          if (locationId) url.searchParams.set('filter.locationId', locationId);
+          url.searchParams.set('filter.limit', '1');
+          const resp = await fetch(url, { headers: { Authorization: `Bearer ${bearer}`, Accept: 'application/json' }, signal: controller.signal });
+          const raw = await resp.text();
+          let data; try { data = raw ? JSON.parse(raw) : {}; } catch { data = { error: 'non_json_response', raw }; }
+          const top = data?.data?.[0] || null;
+          return { ingredient: term, product: shapeProduct(top), status: resp.status };
+        } catch (err) {
+          return { ingredient: term, product: null, status: 504, error: 'timeout_or_fetch_error', message: String(err) };
+        } finally {
+          clearTimeout(timer);
+        }
+      };
+
+      // Concurrency pool with global deadline
+      const out = [];
+      let i = 0;
+      let active = 0;
+      return await new Promise((resolve) => {
+        const maybeNext = () => {
+          // Deadline reached: resolve with what we have
+          if (Date.now() - started > deadlineMs) return resolve(respond(200, out));
+          while (active < concurrency && i < cleaned.length) {
+            const term = cleaned[i++];
+            active++;
+            fetchOne(term).then((res) => out.push(res)).catch((e) => out.push({ ingredient: term, product: null, status: 500, error: 'worker_error', message: String(e) }))
+              .finally(() => {
+                active--;
+                if (out.length === cleaned.length || (i >= cleaned.length && active === 0)) {
+                  resolve(respond(200, out));
+                } else {
+                  maybeNext();
+                }
+              });
+          }
+        };
+        maybeNext();
+      });
     }
 
     // Unknown route

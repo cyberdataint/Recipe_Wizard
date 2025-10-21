@@ -180,41 +180,44 @@ class KrogerAPI {
   // Batch search for multiple ingredients
   async findMultipleIngredients(ingredients) {
     if (this.useProxy) {
-      // Use proxy batch endpoint for better performance
-      try {
-        const token = await this.getAccessToken()
-        const response = await fetch(`${this.proxyUrl}/batch-search`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ 
-            terms: ingredients, 
-            locationId: this.locationId || '01400943',
-            limit: 5
+      // Use proxy batch endpoint with chunking to avoid serverless timeouts
+      const list = (ingredients || []).filter(Boolean)
+      const chunkSize = 8
+      const out = []
+      const token = await this.getAccessToken()
+      for (let i = 0; i < list.length; i += chunkSize) {
+        const chunk = list.slice(i, i + chunkSize)
+        try {
+          const response = await fetch(`${this.proxyUrl}/batch-search`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ 
+              terms: chunk, 
+              locationId: this.locationId || '01400943'
+            })
           })
-        })
 
-        if (!response.ok) {
-          throw new Error(`Batch search failed: ${response.status}`)
+          if (!response.ok) {
+            throw new Error(`Batch search failed: ${response.status}`)
+          }
+          const batch = await response.json()
+          out.push(...batch)
+        } catch (error) {
+          console.error('Batch chunk failed, falling back to per-item:', error)
+          const results = await Promise.allSettled(
+            chunk.map(ing => this.findIngredient(ing))
+          )
+          out.push(...results.map((result, index) => ({
+            ingredient: chunk[index],
+            product: result.status === 'fulfilled' ? result.value : null,
+            error: result.status === 'rejected' ? result.reason : null
+          })))
         }
-
-  const batchResults = await response.json();
-        return batchResults;
-      } catch (error) {
-        console.error('Proxy batch search error:', error)
-        // Fallback to individual searches
-        const results = await Promise.allSettled(
-          ingredients.map(ing => this.findIngredient(ing))
-        )
-
-        return results.map((result, index) => ({
-          ingredient: ingredients[index],
-          product: result.status === 'fulfilled' ? result.value : null,
-          error: result.status === 'rejected' ? result.reason : null
-        }))
       }
+      return out
     } else {
       // Direct API calls (will hit CORS in browser)
       const results = await Promise.allSettled(
