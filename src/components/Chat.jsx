@@ -174,7 +174,7 @@ export default function Chat() {
   const handleFunctionCall = async (functionCall) => {
     const { name, args } = functionCall
     
-    console.log('Executing function:', name, 'with args:', args)
+  if (import.meta.env.DEV) console.log('Executing function:', name, 'with args:', args)
     setFunctionStatus(`Executing: ${name}...`)
     
      if (name === 'get_pantry_items') {
@@ -236,7 +236,7 @@ export default function Chat() {
       
       for (const item of items) {
         try {
-          console.log('Adding to shopping list:', item)
+          if (import.meta.env.DEV) console.log('Adding to shopping list:', item)
           const { data, error } = await supabase
             .from('shopping_list_items')
             .insert([{ 
@@ -254,7 +254,7 @@ export default function Chat() {
             console.error('Supabase error:', error)
             throw error
           }
-          console.log('Successfully added:', item.ingredient_name)
+          if (import.meta.env.DEV) console.log('Successfully added:', item.ingredient_name)
           results.push(`✓ Added ${item.ingredient_name}`)
           successCount++
         } catch (e) {
@@ -281,7 +281,7 @@ export default function Chat() {
       
       for (const item of items) {
         try {
-          console.log('Adding to pantry:', item)
+          if (import.meta.env.DEV) console.log('Adding to pantry:', item)
           const { data, error } = await supabase
             .from('pantry_items')
             .insert([{ 
@@ -297,7 +297,7 @@ export default function Chat() {
             console.error('Supabase error:', error)
             throw error
           }
-          console.log('Successfully added to pantry:', item.ingredient_name)
+          if (import.meta.env.DEV) console.log('Successfully added to pantry:', item.ingredient_name)
           results.push(`✓ Added ${item.ingredient_name} to pantry`)
           successCount++
         } catch (e) {
@@ -380,8 +380,10 @@ Be friendly and conversational. Answer cooking questions directly with knowledge
       let result = await chat.sendMessage(userText)
       let response = result.response
       
-      console.log('=== GEMINI RESPONSE ===')
-      console.log('Response candidates:', JSON.stringify(response.candidates, null, 2))
+      if (import.meta.env.DEV) {
+        console.log('=== GEMINI RESPONSE ===')
+        console.log('Response candidates:', JSON.stringify(response.candidates, null, 2))
+      }
       
       // Extract function call from the response structure
       const getFunctionCall = (response) => {
@@ -392,13 +394,15 @@ Be friendly and conversational. Answer cooking questions directly with knowledge
       // Handle function calls
       let functionCall = getFunctionCall(response)
       while (functionCall) {
-        console.log('=== Function Call Detected ===')
-        console.log('Function name:', functionCall.name)
-        console.log('Function args:', JSON.stringify(functionCall.args, null, 2))
+        if (import.meta.env.DEV) {
+          console.log('=== Function Call Detected ===')
+          console.log('Function name:', functionCall.name)
+          console.log('Function args:', JSON.stringify(functionCall.args, null, 2))
+        }
         
         // Execute the function
         const functionResult = await handleFunctionCall(functionCall)
-        console.log('Function result:', functionResult)
+  if (import.meta.env.DEV) console.log('Function result:', functionResult)
         
         // Send the result back to Gemini
         result = await chat.sendMessage([{
@@ -408,14 +412,14 @@ Be friendly and conversational. Answer cooking questions directly with knowledge
           }
         }])
         response = result.response
-        console.log('=== Function Response Sent ===')
+  if (import.meta.env.DEV) console.log('=== Function Response Sent ===')
         
         // Check if there's another function call
         functionCall = getFunctionCall(response)
       }
       
       if (!getFunctionCall(response)) {
-        console.log('No function calls in this response')
+        if (import.meta.env.DEV) console.log('No function calls in this response')
       }
       
       const reply = response.text()
