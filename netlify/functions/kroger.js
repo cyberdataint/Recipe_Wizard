@@ -1,7 +1,7 @@
 // netlify/functions/kroger.js
 // Node 18+ has global fetch on Netlify – no import needed.
 
-function json(status, data, extraHeaders = {}) {
+function respond(status, data, extraHeaders = {}) {
   return {
     statusCode: status,
     headers: {
@@ -23,19 +23,17 @@ function subpathFrom(event) {
 
 export async function handler(event) {
   try {
-    const { path, httpMethod, queryStringParameters, headers, body } = event;
-
-    // Helper: JSON response
-    const json = (status, data) => ({ statusCode: status, body: JSON.stringify(data) });
+    const method = event.httpMethod;
+    const sub = subpathFrom(event);
 
     // ----- TOKEN: POST /api/kroger/token -----
     if (sub === '/token' && method === 'POST') {
-      // Support a few common env var names to tolerate misnaming
-      const id = process.env.KROGER_CLIENT_ID || process.env.VITE_KROGER_CLIENT_ID || process.env.KROGER_ID || process.env.KROGER_CLIENT;
-      const secret = process.env.KROGER_CLIENT_SECRET || process.env.VITE_KROGER_CLIENT_SECRET || process.env.KROGER_SECRET || process.env.KROGER_CLIENT_SECRET_KEY;
+      const id = process.env.KROGER_CLIENT_ID || process.env.VITE_KROGER_CLIENT_ID;
+      const secret = process.env.KROGER_CLIENT_SECRET || process.env.VITE_KROGER_CLIENT_SECRET;
       const scope = process.env.KROGER_SCOPE || 'product.compact';
+
       if (!id || !secret) {
-        return json(500, { error: 'Missing KROGER_CLIENT_ID / KROGER_CLIENT_SECRET on server' });
+        return respond(500, { error: 'Missing KROGER_CLIENT_ID / KROGER_CLIENT_SECRET on server' });
       }
       const auth = Buffer.from(`${id}:${secret}`).toString('base64');
       const resp = await fetch('https://api.kroger.com/v1/connect/oauth2/token', {
@@ -50,58 +48,47 @@ export async function handler(event) {
           scope,
         }).toString(),
       });
-<<<<<<< Updated upstream
-      const data = await resp.json();
-      return { statusCode: resp.status, body: JSON.stringify(data) };
-=======
-      // Try to parse JSON, but fall back to text so callers see real error details
       const raw = await resp.text();
       let data;
-      try {
-        data = raw ? JSON.parse(raw) : {};
-      } catch (e) {
-        data = { error: 'token_response_non_json', raw };
-      }
-      return json(resp.status, data, { 'Cache-Control': 'no-store' });
->>>>>>> Stashed changes
+      try { data = raw ? JSON.parse(raw) : {}; } catch { data = { error: 'non_json_response', raw }; }
+      return respond(resp.status, data);
     }
 
     // Helper: get Bearer token from header or query (dev)
     const bearer =
-      event.headers.authorization?.replace(/^Bearer\s+/i, '') ||
+      event.headers?.authorization?.replace(/^Bearer\s+/i, '') ||
       event.queryStringParameters?.token;
 
     if (!bearer && sub !== '/' && sub !== '/token') {
-      return json(401, { error: 'Missing Authorization: Bearer <token>' });
+      return respond(401, { error: 'Missing Authorization: Bearer <token>' });
     }
 
-    // ----- LOCATIONS: GET /api/kroger/locations -----
-    // Accepts either Kroger filter.* params or friendly keys: lat, lon, radius, limit, chain
+    // ----- LOCATIONS: GET /api/kroger/locations?lat=..&lon=..&radius=..&limit=..&chain=.. -----
     if (sub === '/locations' && method === 'GET') {
-      const url = new URL('https://api.kroger.com/v1/locations');
       const qs = event.queryStringParameters || {};
-      // Pass through any provided filter.* params
-      for (const [k, v] of Object.entries(qs)) {
-        if (v != null && k.startsWith('filter.')) url.searchParams.set(k, v);
-      }
-      // Map friendly params if present
+      const url = new URL('https://api.kroger.com/v1/locations');
+
+      // Friendly params mapping
       const lat = qs.lat ?? qs.latitude;
       const lon = qs.lon ?? qs.longitude;
-      if (lat != null && lon != null) {
-        url.searchParams.set('filter.latLong.near', `${lat},${lon}`);
+      const radius = qs.radius ?? qs['filter.radiusInMiles'];
+      const limit = qs.limit ?? qs['filter.limit'];
+      const chain = qs.chain ?? qs['filter.chain'];
+
+      if (lat != null && lon != null) url.searchParams.set('filter.latLong.near', `${lat},${lon}`);
+      if (radius != null) url.searchParams.set('filter.radiusInMiles', String(radius));
+      if (limit != null) url.searchParams.set('filter.limit', String(limit));
+      if (chain) url.searchParams.set('filter.chain', String(chain));
+
+      // Pass through any filter.* params directly as well
+      for (const [k, v] of Object.entries(qs)) {
+        if (k.startsWith('filter.') && v != null) url.searchParams.set(k, v);
       }
-      if (qs.radius != null) url.searchParams.set('filter.radiusInMiles', String(qs.radius));
-      if (qs.limit != null) url.searchParams.set('filter.limit', String(qs.limit));
-      if (qs.chain != null) url.searchParams.set('filter.chain', qs.chain);
-      const resp = await fetch(url, { headers: { Authorization: `Bearer ${bearer}` } });
+
+      const resp = await fetch(url, { headers: { Authorization: `Bearer ${bearer}`, Accept: 'application/json' } });
       const raw = await resp.text();
-      let data;
-      try {
-        data = raw ? JSON.parse(raw) : {};
-      } catch (e) {
-        data = { error: 'locations_response_non_json', raw };
-      }
-      return json(resp.status, data);
+      let data; try { data = raw ? JSON.parse(raw) : {}; } catch { data = { error: 'non_json_response', raw }; }
+      return respond(resp.status, data);
     }
 
     // ----- PRODUCTS: GET /api/kroger/products?term=milk&locationId=xxxxx&limit=10 -----
@@ -114,86 +101,38 @@ export async function handler(event) {
       const locationId = qs.locationId ?? qs['filter.locationId'];
       const limit = qs.limit ?? qs['filter.limit'] ?? '10';
 
-      if (term) url.searchParams.set("filter.term", term);
-      if (locationId) url.searchParams.set("filter.locationId", locationId);
-      url.searchParams.set("filter.limit", limit);
+      if (term) url.searchParams.set('filter.term', term);
+      if (locationId) url.searchParams.set('filter.locationId', locationId);
+      url.searchParams.set('filter.limit', String(limit));
 
-      const resp = await fetch(url, { headers: { Authorization: `Bearer ${bearer}` } });
-<<<<<<< Updated upstream
-      const data = await resp.json();
-      return { statusCode: resp.status, body: JSON.stringify(data) };
-=======
+      const resp = await fetch(url, { headers: { Authorization: `Bearer ${bearer}`, Accept: 'application/json' } });
       const raw = await resp.text();
-      let data;
-      try {
-        data = raw ? JSON.parse(raw) : {};
-      } catch (e) {
-        data = { error: 'products_response_non_json', raw };
-      }
-      return json(resp.status, data);
->>>>>>> Stashed changes
+      let data; try { data = raw ? JSON.parse(raw) : {}; } catch { data = { error: 'non_json_response', raw }; }
+      return respond(resp.status, data);
     }
 
-    // ----- Locations (optional) -----
-    if (path.includes("/locations") && httpMethod === "GET") {
-      const token = headers.authorization?.replace("Bearer ", "") || queryStringParameters?.token;
-      if (!token) return json(401, { error: "Missing Authorization: Bearer <token>" });
-
-      const url = new URL("https://api.kroger.com/v1/locations");
-      for (const [k, v] of Object.entries(queryStringParameters || {})) {
-        url.searchParams.set(k, v);
-      }
-<<<<<<< Updated upstream
-      const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-      const data = await resp.json();
-      return { statusCode: resp.status, body: JSON.stringify(data) };
-=======
+    // ----- BATCH SEARCH: POST /api/kroger/batch-search -----
+    if (sub === '/batch-search' && method === 'POST') {
+      const payload = event.body ? JSON.parse(event.body) : {};
+      const { terms = [], locationId, limit = 5 } = payload;
 
       const results = [];
-      for (const t of terms) {
+      for (const term of terms) {
         const url = new URL('https://api.kroger.com/v1/products');
-        url.searchParams.set('filter.term', t);
-        url.searchParams.set('filter.locationId', locationId);
+        url.searchParams.set('filter.term', term);
+        if (locationId) url.searchParams.set('filter.locationId', locationId);
         url.searchParams.set('filter.limit', String(limit));
-
-        const resp = await fetch(url, { headers: { Authorization: `Bearer ${bearer}` } });
+        const resp = await fetch(url, { headers: { Authorization: `Bearer ${bearer}`, Accept: 'application/json' } });
         const raw = await resp.text();
-        let data;
-        try {
-          data = raw ? JSON.parse(raw) : {};
-        } catch (e) {
-          data = { error: 'products_response_non_json', raw };
-        }
-        results.push({ term: t, status: resp.status, data });
+        let data; try { data = raw ? JSON.parse(raw) : {}; } catch { data = { error: 'non_json_response', raw }; }
+        results.push({ term, status: resp.status, data });
       }
-      return json(200, { results });
-    }
-
-    // ----- (optional) PRICES per item — add if your UI calls it -----
-    // Example: GET /api/kroger/prices?productId=xxx&locationId=yyy
-    if (sub === '/prices' && method === 'GET') {
-      const { productId, locationId } = event.queryStringParameters || {};
-      if (!productId || !locationId) return json(400, { error: 'productId and locationId required' });
-
-      // NOTE: Some accounts need specific scopes for explicit pricing.
-      // Many apps rely on price fields already present on /products items.
-      const url = new URL(`https://api.kroger.com/v1/products/${encodeURIComponent(productId)}`);
-      url.searchParams.set('filter.locationId', locationId);
-      const resp = await fetch(url, { headers: { Authorization: `Bearer ${bearer}` } });
-      const raw = await resp.text();
-      let data;
-      try {
-        data = raw ? JSON.parse(raw) : {};
-      } catch (e) {
-        data = { error: 'product_detail_response_non_json', raw };
-      }
-      return json(resp.status, data);
->>>>>>> Stashed changes
+      return respond(200, results);
     }
 
     // Unknown route
-    return json(404, { error: 'Not found', path: sub });
+    return respond(404, { error: 'Not found', path: sub });
   } catch (e) {
-    return json(500, { error: e.message });
+    return respond(500, { error: e.message });
   }
 }

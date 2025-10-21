@@ -29,28 +29,10 @@ class KrogerAPI {
     }
 
     try {
-<<<<<<< HEAD
-<<<<<<< Updated upstream
-      const credentials = btoa(`${this.clientId}:${this.clientSecret}`)
-      const response = await fetch('https://api.kroger.com/v1/connect/oauth2/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Authorization': `Basic ${credentials}`
-        },
-        body: 'grant_type=client_credentials&scope=product.compact'
-      })
-=======
-=======
->>>>>>> b70ac7ecb76f1a2b0c9d0d1a4d54727b93075921
       if (this.useProxy) {
         // Get token from proxy server (server handles credentials)
         const response = await fetch(`${this.proxyUrl}/token`, { method: 'POST' })
         if (!response.ok) {
-<<<<<<< Updated upstream
-<<<<<<< HEAD
-=======
->>>>>>> Stashed changes
           // Try to read JSON, else fall back to text so we can see real Kroger errors
           const raw = await response.text()
           let errorData
@@ -61,13 +43,6 @@ class KrogerAPI {
           }
           const message = errorData.error_description || errorData.error || `Token fetch failed: ${response.status}`
           throw new Error(message)
-<<<<<<< Updated upstream
-=======
-          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
-          throw new Error(errorData.error || `Token fetch failed: ${response.status}`)
->>>>>>> b70ac7ecb76f1a2b0c9d0d1a4d54727b93075921
-=======
->>>>>>> Stashed changes
         }
         const data = await response.json()
         this.accessToken = data.access_token
@@ -85,10 +60,6 @@ class KrogerAPI {
           },
           body: 'grant_type=client_credentials&scope=product.compact'
         })
-<<<<<<< HEAD
->>>>>>> Stashed changes
-=======
->>>>>>> b70ac7ecb76f1a2b0c9d0d1a4d54727b93075921
 
         if (!response.ok) {
           throw new Error(`Failed to get access token: ${response.status}`)
@@ -134,7 +105,7 @@ class KrogerAPI {
         const token = await this.getAccessToken()
         const url = new URL(`${this.baseUrl}/products`)
         url.searchParams.append('filter.term', query)
-  url.searchParams.append('filter.locationId', locationId)
+    url.searchParams.append('filter.locationId', locationId)
         url.searchParams.append('filter.limit', '5')
 
         const response = await fetch(url, {
