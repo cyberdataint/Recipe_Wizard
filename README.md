@@ -2,6 +2,10 @@
 
 A modern, full-featured recipe management application built with React and Vite. Search recipes, manage your pantry, create shopping lists, and chat with an AI assistant powered by Google Gemini. Get real-time pricing from Kroger stores!
 
+## Live site
+
+Hosted on Cloudflare Pages: https://recipe-wizard.pages.dev/
+
 ## ✨ Features
 
 - � **Recipe Search** - Find recipes by name or ingredients using Spoonacular API
