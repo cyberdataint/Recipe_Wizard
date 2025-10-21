@@ -50,8 +50,8 @@ export async function handler(event) {
       });
     }
 
-    // ----- TOKEN: POST /api/kroger/token -----
-    if (sub === '/token' && method === 'POST') {
+    // ----- TOKEN: POST|GET /api/kroger/token -----
+    if (sub === '/token' && (method === 'POST' || method === 'GET')) {
       const id = process.env.KROGER_CLIENT_ID || process.env.VITE_KROGER_CLIENT_ID;
       const secret = process.env.KROGER_CLIENT_SECRET || process.env.VITE_KROGER_CLIENT_SECRET;
       const scope = process.env.KROGER_SCOPE || 'product.compact';

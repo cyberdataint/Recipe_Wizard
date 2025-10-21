@@ -6,9 +6,11 @@
   from = "/api/*"
   to = "/.netlify/functions/kroger/:splat"
   status = 200
+  force = true
 
 # SPA fallback
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+  force = true
