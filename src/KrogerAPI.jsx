@@ -24,8 +24,8 @@ class KrogerAPI {
     this.accessToken = null
     this.tokenExpiry = null
     this.baseUrl = 'https://api.kroger.com/v1'
-    // Selected store locationId, persisted in localStorage
-    this.locationId = localStorage.getItem('kroger_location_id') || '01400943'
+  // Selected store locationId, persisted in localStorage (no default)
+  this.locationId = localStorage.getItem('kroger_location_id') || null
   }
 
   // Get OAuth access token (via proxy or direct)
@@ -90,16 +90,13 @@ class KrogerAPI {
   }
 
   // Search for products
-  async searchProducts(query, locationId = this.locationId || '01400943') {
+  async searchProducts(query, locationId = this.locationId) {
     try {
       if (this.useProxy) {
         // Use proxy server to avoid CORS
         const token = await this.getAccessToken()
-        const params = new URLSearchParams({ 
-          term: query, 
-          locationId: locationId, 
-          limit: 5 
-        })
+        const params = new URLSearchParams({ term: query, limit: 5 })
+        if (locationId) params.append('locationId', locationId)
         const response = await fetch(`${this.proxyUrl}/products?${params.toString()}`, {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -116,9 +113,9 @@ class KrogerAPI {
         // Direct API call (requires server-side or will hit CORS)
         const token = await this.getAccessToken()
         const url = new URL(`${this.baseUrl}/products`)
-        url.searchParams.append('filter.term', query)
-    url.searchParams.append('filter.locationId', locationId)
-        url.searchParams.append('filter.limit', '5')
+    url.searchParams.append('filter.term', query)
+    if (locationId) url.searchParams.append('filter.locationId', locationId)
+    url.searchParams.append('filter.limit', '5')
 
         const response = await fetch(url, {
           headers: {
@@ -179,7 +176,7 @@ class KrogerAPI {
 
   // Batch search for multiple ingredients
   async findMultipleIngredients(ingredients) {
-    if (this.useProxy) {
+  if (this.useProxy) {
       // Use proxy batch endpoint with chunking to avoid serverless timeouts
       const list = (ingredients || []).filter(Boolean)
       const chunkSize = 8
@@ -194,10 +191,7 @@ class KrogerAPI {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${token}`
             },
-            body: JSON.stringify({ 
-              terms: chunk, 
-              locationId: this.locationId || '01400943'
-            })
+            body: JSON.stringify({ terms: chunk, ...(this.locationId ? { locationId: this.locationId } : {}) })
           })
 
           if (!response.ok) {
@@ -233,48 +227,81 @@ class KrogerAPI {
     }
   }
 
-  // List locations near a latitude/longitude
-  async listLocations({ lat = 42.66, lon = -83.385, radius = 50, limit = 200, chain = '' } = {}) {
+  // Removed lat/long listing; use listLocationsByZip instead
+
+  // List locations by ZIP code within a radius (miles)
+  async listLocationsByZip({ zip, radius = 7, limit = 12, chain = 'Kroger' } = {}) {
+    if (!zip) return []
     try {
       if (this.useProxy) {
-        // Use proxy server
+        const token = await this.getAccessToken()
+        const params = new URLSearchParams({
+          'filter.zipCode.near': String(zip),
+          'filter.radiusInMiles': String(radius),
+          'filter.limit': String(limit)
+        })
+        if (chain) params.append('filter.chain', chain)
+        const res = await fetch(`${this.proxyUrl}/locations?${params.toString()}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (!res.ok) throw new Error(`Locations (zip) failed: ${res.status}`)
+        const data = await res.json()
+        return data?.data || []
+      } else {
+        const token = await this.getAccessToken()
+        const url = new URL(`${this.baseUrl}/locations`)
+        url.searchParams.append('filter.zipCode.near', String(zip))
+        url.searchParams.append('filter.radiusInMiles', String(radius))
+        url.searchParams.append('filter.limit', String(limit))
+        if (chain) url.searchParams.append('filter.chain', chain)
+        const res = await fetch(url, {
+          headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+        })
+        if (!res.ok) throw new Error(`Locations (zip) failed: ${res.status}`)
+        const data = await res.json()
+        return data?.data || []
+      }
+    } catch (err) {
+        if (import.meta.env.DEV) console.error('Kroger locations by zip error:', err)
+      return []
+    }
+  }
+
+  // List locations by latitude/longitude within a radius (miles)
+  async listLocationsByLatLon({ lat, lon, radius = 7, limit = 12, chain = 'Kroger' } = {}) {
+    if (lat == null || lon == null) return []
+    try {
+      if (this.useProxy) {
         const token = await this.getAccessToken()
         const params = new URLSearchParams({
           lat: String(lat),
           lon: String(lon),
-          radius: String(radius),
-          limit: String(limit)
+          'filter.radiusInMiles': String(radius),
+          'filter.limit': String(limit)
         })
-        if (chain) params.append('chain', chain)
+        if (chain) params.append('filter.chain', chain)
         const res = await fetch(`${this.proxyUrl}/locations?${params.toString()}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
+          headers: { 'Authorization': `Bearer ${token}` }
         })
-        if (!res.ok) throw new Error(`Locations fetch failed: ${res.status}`)
+        if (!res.ok) throw new Error(`Locations (latlon) failed: ${res.status}`)
         const data = await res.json()
         return data?.data || []
       } else {
-        // Direct API call (for local development)
         const token = await this.getAccessToken()
         const url = new URL(`${this.baseUrl}/locations`)
         url.searchParams.append('filter.latLong.near', `${lat},${lon}`)
         url.searchParams.append('filter.radiusInMiles', String(radius))
         url.searchParams.append('filter.limit', String(limit))
         if (chain) url.searchParams.append('filter.chain', chain)
-        
         const res = await fetch(url, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/json'
-          }
+          headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
         })
-        if (!res.ok) throw new Error(`Locations fetch failed: ${res.status}`)
+        if (!res.ok) throw new Error(`Locations (latlon) failed: ${res.status}`)
         const data = await res.json()
         return data?.data || []
       }
     } catch (err) {
-        if (import.meta.env.DEV) console.error('Kroger locations error:', err)
+      if (import.meta.env.DEV) console.error('Kroger locations by lat/lon error:', err)
       return []
     }
   }

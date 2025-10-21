@@ -1,13 +1,17 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import '../App.css'
+import { useAuth } from '../contexts/AuthContext'
+import favoritesAPI from '../FavoritesAPI'
 
 export default function Recipes() {
+  const { user } = useAuth()
   const [query, setQuery] = useState('')
   const [recipes, setRecipes] = useState([])
   const [loading, setLoading] = useState(false)
   const [selectedRecipe, setSelectedRecipe] = useState(null)
   const [loadingDetails, setLoadingDetails] = useState(false)
-  const [searchType, setSearchType] = useState('name') // 'name' or 'ingredient'
+  const [favKeys, setFavKeys] = useState(() => new Set())
+  // Simplify: single search bar (search by name)
 
   const API_KEY = import.meta.env.VITE_SPOONACULAR_API_KEY
 
@@ -17,30 +21,51 @@ export default function Recipes() {
     setLoading(true)
     setSelectedRecipe(null)
     try {
-      if (searchType === 'ingredient') {
-        const url = `https://api.spoonacular.com/recipes/findByIngredients?ingredients=${encodeURIComponent(query)}&number=9&ranking=1&ignorePantry=true&apiKey=${API_KEY}`
-        const response = await fetch(url)
-        if (!response.ok) throw new Error('Failed to fetch recipes')
-        const recipesData = await response.json()
-        setRecipes(recipesData)
-        if ((recipesData || []).length === 0) {
-          alert('No recipes found. Try a different search!')
-        }
-      } else {
-        const url = `https://api.spoonacular.com/recipes/complexSearch?query=${encodeURIComponent(query)}&number=9&addRecipeInformation=true&fillIngredients=true&apiKey=${API_KEY}`
-        const response = await fetch(url)
-        if (!response.ok) throw new Error('Failed to fetch recipes')
-        const data = await response.json()
-        setRecipes(data.results || [])
-        if ((data.results || []).length === 0) {
-          alert('No recipes found. Try a different search!')
-        }
+      const url = `https://api.spoonacular.com/recipes/complexSearch?query=${encodeURIComponent(query)}&number=9&addRecipeInformation=true&fillIngredients=true&apiKey=${API_KEY}`
+      const response = await fetch(url)
+      if (!response.ok) throw new Error('Failed to fetch recipes')
+      const data = await response.json()
+      setRecipes(data.results || [])
+      if ((data.results || []).length === 0) {
+        alert('No recipes found. Try a different search!')
       }
     } catch (error) {
       console.error('Error:', error)
       alert('Sorry, I encountered an error. Please try again.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Load recipe favorites for the signed-in user
+  useEffect(() => {
+    let mounted = true
+    const load = async () => {
+      if (!user) { setFavKeys(new Set()); return }
+      const list = await favoritesAPI.listFavorites(user.id, 'recipe')
+      if (!mounted) return
+      setFavKeys(new Set(list.map((f) => String(f.key))))
+    }
+    load()
+    return () => { mounted = false }
+  }, [user])
+
+  const toggleFavorite = async (recipe, e) => {
+    e?.stopPropagation?.()
+    if (!user) { alert('Please sign in to save favorites'); return }
+    const key = String(recipe.id)
+    const title = recipe.title || recipe.name
+    const metadata = { image: recipe.image, servings: recipe.servings, url: recipe.sourceUrl }
+    try {
+      const res = await favoritesAPI.toggleFavorite({ userId: user.id, type: 'recipe', key, title, metadata })
+      setFavKeys((prev) => {
+        const next = new Set(prev)
+        if (res.favorited) next.add(key); else next.delete(key)
+        return next
+      })
+    } catch (err) {
+      console.error('Failed to toggle favorite', err)
+      alert('Could not update favorite. Please try again.')
     }
   }
 
@@ -72,41 +97,12 @@ export default function Recipes() {
       )}
 
       <div className='search-container'>
-        <div className="search-type-toggle">
-          <label>
-            <input
-              type="radio"
-              name="searchType"
-              value="name"
-              checked={searchType === 'name'}
-              onChange={() => setSearchType('name')}
-              disabled={loading}
-            />
-            Search by Name
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="searchType"
-              value="ingredient"
-              checked={searchType === 'ingredient'}
-              onChange={() => setSearchType('ingredient')}
-              disabled={loading}
-            />
-            Search by Ingredient(s)
-          </label>
-        </div>
-
         <form onSubmit={handleSearch} className="search-form">
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={
-              searchType === 'ingredient'
-                ? 'Enter ingredient(s), e.g. chicken, rice'
-                : 'Search for recipes (e.g., pasta, chicken, dessert)...'
-            }
+            placeholder={'Search for recipes (e.g., pasta, chicken, dessert)...'}
             className="search-input"
             disabled={loading || !API_KEY}
           />
@@ -146,14 +142,22 @@ export default function Recipes() {
             <div
               key={recipe.id}
               className="recipe-card"
-              onClick={() => fetchRecipeDetails(recipe.id)}
             >
+              {/* Favorite star overlay */}
+              <button
+                className={`recipe-fav-btn ${favKeys.has(String(recipe.id)) ? 'favorited' : ''}`}
+                onClick={(e) => toggleFavorite(recipe, e)}
+                title={favKeys.has(String(recipe.id)) ? 'Unfavorite' : 'Favorite'}
+              >
+                {favKeys.has(String(recipe.id)) ? '★' : '☆'}
+              </button>
               <img
                 src={recipe.image}
                 alt={recipe.title || recipe.name}
                 className="recipe-image"
+                onClick={() => fetchRecipeDetails(recipe.id)}
               />
-              <div className="recipe-info">
+              <div className="recipe-info" onClick={() => fetchRecipeDetails(recipe.id)}>
                 <h3>{recipe.title || recipe.name}</h3>
                 <div className="recipe-meta">
                   {recipe.readyInMinutes && (
@@ -268,6 +272,14 @@ export default function Recipes() {
                     >
                       🔗 View Original Recipe
                     </a>
+                    <button
+                      style={{ marginLeft: 12 }}
+                      className="search-button"
+                      onClick={(e) => toggleFavorite(selectedRecipe, e)}
+                      title={favKeys.has(String(selectedRecipe.id)) ? 'Unfavorite' : 'Favorite'}
+                    >
+                      {favKeys.has(String(selectedRecipe.id)) ? '★ Favorited' : '☆ Add to Favorites'}
+                    </button>
                   </div>
                 )}
               </>

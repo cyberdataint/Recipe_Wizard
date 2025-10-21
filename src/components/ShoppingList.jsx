@@ -3,6 +3,8 @@ import { useAuth } from '../contexts/AuthContext'
 import supabase from '../Supabase'
 import krogerAPI from '../KrogerAPI'
 import './ShoppingList.css'
+import StorePicker from './StorePicker'
+import favoritesAPI from '../FavoritesAPI'
 
 export default function ShoppingList() {
   const { user } = useAuth()
@@ -12,11 +14,14 @@ export default function ShoppingList() {
   const [loading, setLoading] = useState(true)
   const [loadingPrices, setLoadingPrices] = useState(false)
   const [priceData, setPriceData] = useState({})
+  const [favIngredients, setFavIngredients] = useState(() => new Set())
   const [error, setError] = useState('')
   const [stores, setStores] = useState([])
   const [selectedStore, setSelectedStore] = useState(() => {
-    return localStorage.getItem('kroger_location_id') || '01400943'
+    return localStorage.getItem('kroger_location_id') || ''
   })
+  const [zip, setZip] = useState(() => localStorage.getItem('kroger_zip') || '')
+  const [loadingStores, setLoadingStores] = useState(false)
   const [newItem, setNewItem] = useState({
     ingredient_name: '',
     quantity: '',
@@ -28,27 +33,14 @@ export default function ShoppingList() {
   useEffect(() => {
     if (user) {
       fetchShoppingItems()
+      // Load favorites for ingredients
+      loadFavs()
     }
   }, [user])
 
-  // Load nearby stores on mount
-  useEffect(() => {
-    const loadStores = async () => {
-      try {
-        const data = await krogerAPI.listLocations({ lat: 42.66, lon: -83.385, radius: 50, limit: 200, chain: 'Kroger' })
-        // Filter to Kroger family chains commonly shoppable (optional)
-        const sorted = (data || []).sort((a, b) => {
-          const an = a?.address?.city || ''
-          const bn = b?.address?.city || ''
-          return an.localeCompare(bn)
-        })
-        setStores(sorted)
-      } catch (e) {
-        console.error('Failed to load stores', e)
-      }
-    }
-    loadStores()
-  }, [])
+  // Do not auto-load any stores on mount; user must search by ZIP
+
+  // Deprecated local search handler; StorePicker handles searching and selection now
 
   const fetchShoppingItems = async () => {
     try {
@@ -61,14 +53,24 @@ export default function ShoppingList() {
       if (error) throw error
       setShoppingItems(data || [])
       
-      // Auto-fetch prices after loading items
-      if (data && data.length > 0) {
+      // Auto-fetch prices only if a store is selected
+      if (data && data.length > 0 && selectedStore) {
         fetchKrogerPrices(data)
       }
     } catch (error) {
       console.error('Error fetching shopping items:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadFavs = async () => {
+    try {
+      if (!user) { setFavIngredients(new Set()); return }
+      const list = await favoritesAPI.listFavorites(user.id, 'ingredient')
+      setFavIngredients(new Set(list.map((f) => String(f.key))))
+    } catch (e) {
+      // non-blocking
     }
   }
 
@@ -193,6 +195,21 @@ export default function ShoppingList() {
     }
   }
 
+  const toggleFavIngredient = async (name) => {
+    if (!user) { alert('Please sign in to save favorites'); return }
+    const key = String(name)
+    try {
+      const res = await favoritesAPI.toggleFavorite({ userId: user.id, type: 'ingredient', key, title: name, metadata: priceData[name] || {} })
+      setFavIngredients((prev) => {
+        const next = new Set(prev)
+        if (res.favorited) next.add(key); else next.delete(key)
+        return next
+      })
+    } catch (e) {
+      alert('Could not update favorite')
+    }
+  }
+
   // Removed clearCheckedItems and all mass selection logic
 
   if (loading) {
@@ -203,29 +220,18 @@ export default function ShoppingList() {
     <div className="shopping-list-container">
       <div className="header">
         <div className="header-actions">
-          {/* Store selector */}
-          <div className="store-selector" title="Choose your Kroger store for accurate pricing and aisles">
-            <label style={{ marginRight: '8px', color: "white" }}>Store:</label>
-            <select style={{ padding: '0.75rem', fontSize:'1rem', borderRadius: '8px', border: 'none' }} value={selectedStore} onChange={onChangeStore}>
-              {stores.length === 0 && (
-                <option value={selectedStore}>Loading stores…</option>
-              )}
-              {stores.map((s) => (
-                <option key={s.locationId} value={s.locationId}>
-                  {s.name} • {s.address?.city || ''}
-                </option>
-              ))}
-            </select>
-          </div>
-            {shoppingItems.length > 0 && (
-              <button 
-                onClick={() => fetchKrogerPrices(shoppingItems)} 
-                className="refresh-prices-btn"
-                disabled={loadingPrices}
-              >
-                {loadingPrices ? '🔄 Loading...' : '💲 Get Prices'}
-              </button>
-            )}
+          {/* Store selector via StorePicker */}
+          <StorePicker
+            initialZip={zip}
+            initialLocationId={selectedStore}
+            onSelect={(loc) => {
+              setSelectedStore(loc.locationId)
+              krogerAPI.setLocationId(loc.locationId)
+              // Automatically fetch prices on store select
+              if (shoppingItems.length > 0) fetchKrogerPrices(shoppingItems)
+            }}
+          />
+            {/* Removed explicit Get Prices button; prices refresh on store selection */}
         </div>
       </div>
 
@@ -340,6 +346,13 @@ export default function ShoppingList() {
                   )}
                 </div>
                 <div className="item-actions">
+                    <button
+                      onClick={() => toggleFavIngredient(item.ingredient_name)}
+                      className="pantry-btn"
+                      title={favIngredients.has(String(item.ingredient_name)) ? 'Unfavorite' : 'Favorite'}
+                    >
+                      {favIngredients.has(String(item.ingredient_name)) ? '★' : '☆'}
+                    </button>
                   <button 
                     onClick={() => moveToCart(item)}
                     className="pantry-btn"

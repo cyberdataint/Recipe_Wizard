@@ -87,10 +87,12 @@ export async function onRequest(context) {
       const target = new URL('https://api.kroger.com/v1/locations');
       const lat = qs.get('lat') ?? qs.get('latitude');
       const lon = qs.get('lon') ?? qs.get('longitude');
+      const zip = qs.get('zip') ?? qs.get('postal') ?? qs.get('filter.zipCode.near');
       const radius = qs.get('radius') ?? qs.get('filter.radiusInMiles');
       const limit = qs.get('limit') ?? qs.get('filter.limit');
       const chain = qs.get('chain') ?? qs.get('filter.chain');
       if (lat != null && lon != null) target.searchParams.set('filter.latLong.near', `${lat},${lon}`);
+      if (zip != null) target.searchParams.set('filter.zipCode.near', String(zip));
       if (radius != null) target.searchParams.set('filter.radiusInMiles', String(radius));
       if (limit != null) target.searchParams.set('filter.limit', String(limit));
       if (chain) target.searchParams.set('filter.chain', String(chain));

@@ -253,6 +253,7 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   cursor: pointer;
   transition: transform 0.3s, box-shadow 0.3s;
+  position: relative;
 }
 
 .recipe-card:hover {
@@ -265,6 +266,29 @@
   height: 200px;
   object-fit: cover;
 }
+
+/* Favorite star overlay on recipe cards */
+.recipe-fav-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.8);
+  color: #6b6ef5;
+  font-size: 1.2rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  cursor: pointer;
+  transition: transform 0.15s, background 0.15s;
+}
+.recipe-fav-btn:hover { transform: scale(1.05); background: rgba(255,255,255,0.95); }
+.recipe-fav-btn.favorited { color: #ffb800; background: rgba(255, 255, 255, 0.95); }
 
 .recipe-info {
   padding: 1.25rem;

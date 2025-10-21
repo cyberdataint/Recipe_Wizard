@@ -157,7 +157,9 @@ app.get('/api/kroger/products', async (req, res) => {
   const token = await getAccessToken('product.compact');
     const url = new URL('https://api.kroger.com/v1/products');
     url.searchParams.append('filter.term', term);
-    url.searchParams.append('filter.locationId', locationId);
+    if (locationId) {
+      url.searchParams.append('filter.locationId', locationId);
+    }
     url.searchParams.append('filter.limit', limit);
 
     const response = await fetch(url, {
@@ -183,22 +185,43 @@ app.get('/api/kroger/products', async (req, res) => {
   }
 });
 
-// Locations endpoint - list locations near a lat/long
+// Token endpoint (parity with serverless) — supports GET or POST
+app.all('/api/kroger/token', async (req, res) => {
+  try {
+    if (!KROGER_CLIENT_ID || !KROGER_CLIENT_SECRET) {
+      return res.status(500).json({ error: 'Missing KROGER_CLIENT_ID / KROGER_CLIENT_SECRET on server' });
+    }
+    const credentials = Buffer.from(`${KROGER_CLIENT_ID}:${KROGER_CLIENT_SECRET}`).toString('base64');
+    const response = await fetch('https://api.kroger.com/v1/connect/oauth2/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${credentials}`,
+        'Accept': 'application/json'
+      },
+      body: 'grant_type=client_credentials&scope=product.compact'
+    });
+    const text = await response.text();
+    let data; try { data = text ? JSON.parse(text) : {}; } catch { data = { error: 'non_json_response', raw: text }; }
+    res.status(response.status).json(data);
+  } catch (err) {
+    console.error('Token endpoint error:', err);
+    res.status(500).json({ error: String(err?.message || err) });
+  }
+});
+
+// Locations endpoint - list locations by ZIP (zip or postal)
 app.get('/api/kroger/locations', async (req, res) => {
   try {
-    // Defaults: Oakland County, MI centroid-ish and 50 mile radius
-    const {
-      lat = '42.660',
-      lon = '-83.385',
-      radius = '50',
-      limit = '200',
-      chain = ''
-    } = req.query;
+    const { radius = '15', limit = '50', chain = '' } = req.query;
+    const zip = req.query.zip || req.query.postal || req.query['filter.zipCode.near'];
+    if (!zip) {
+      return res.status(400).json({ error: 'Missing zip. Provide ?zip=#####' });
+    }
 
   const token = await getAccessToken('product.compact');
     const url = new URL('https://api.kroger.com/v1/locations');
-    // Use geospatial filter
-    url.searchParams.append('filter.latLong.near', `${lat},${lon}`);
+    url.searchParams.append('filter.zipCode.near', String(zip));
     url.searchParams.append('filter.radiusInMiles', String(radius));
     url.searchParams.append('filter.limit', String(limit));
     // Optionally filter by chain when provided (e.g., 'Kroger')
@@ -233,19 +256,20 @@ app.get('/api/kroger/locations', async (req, res) => {
 // Batch search endpoint
 app.post('/api/kroger/batch-search', async (req, res) => {
   try {
-    const { ingredients, locationId = '01400943' } = req.body;
+    const { ingredients, terms, locationId } = req.body;
+    const list = Array.isArray(ingredients) ? ingredients : (Array.isArray(terms) ? terms : null);
     
-    if (!ingredients || !Array.isArray(ingredients)) {
+    if (!list) {
       return res.status(400).json({ error: 'Invalid ingredients array' });
     }
 
     // Obtain token once per batch to avoid hammering token endpoint
     const token = await getAccessToken('product.compact');
     const results = await Promise.allSettled(
-      ingredients.map(async (ingredient) => {
+  list.map(async (ingredient) => {
         const url = new URL('https://api.kroger.com/v1/products');
         url.searchParams.append('filter.term', ingredient);
-        url.searchParams.append('filter.locationId', String(locationId));
+  if (locationId) url.searchParams.append('filter.locationId', String(locationId));
         url.searchParams.append('filter.limit', '1');
 
         const response = await fetch(url, {
@@ -302,7 +326,7 @@ app.post('/api/kroger/batch-search', async (req, res) => {
     );
 
     const formattedResults = results.map((result, index) => ({
-      ingredient: ingredients[index],
+      ingredient: list[index],
       product: result.status === 'fulfilled' ? result.value.product : null,
       error: result.status === 'rejected' ? result.reason.message : null
     }));
