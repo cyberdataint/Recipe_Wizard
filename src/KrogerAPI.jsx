@@ -7,9 +7,16 @@
 class KrogerAPI {
   constructor() {
     // Toggle between proxy server (avoids CORS) or direct API calls
+    // Always use a proxy in browser: token exchange requires client secret and
+    // Kroger APIs generally do not enable CORS for browsers.
     this.useProxy = true
-    // Use production proxy URL if deployed, otherwise localhost
-    this.proxyUrl = '/api/kroger'   
+    // Choose proxy based on environment
+    const isBrowser = typeof window !== 'undefined'
+    const isLocalhost = isBrowser && /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname)
+    const localProxy = import.meta.env.VITE_LOCAL_KROGER_PROXY_URL || 'http://localhost:3001/api/kroger'
+    const prodProxy = '/api/kroger'
+    // Use local Node proxy in dev; Netlify Function proxy in prod
+    this.proxyUrl = isLocalhost ? localProxy : prodProxy   
 
     // Direct API configuration (only used if useProxy=false)
     this.clientId = import.meta.env.VITE_KROGER_CLIENT_ID
