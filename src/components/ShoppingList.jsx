@@ -5,6 +5,7 @@ import krogerAPI from '../KrogerAPI'
 import './ShoppingList.css'
 import StorePicker from './StorePicker'
 import favoritesAPI from '../FavoritesAPI'
+import { loadImageFromCache, saveImageToCache } from '../utils/imageCache'
 
 export default function ShoppingList() {
   const { user } = useAuth()
@@ -14,6 +15,8 @@ export default function ShoppingList() {
   const [loading, setLoading] = useState(true)
   const [loadingPrices, setLoadingPrices] = useState(false)
   const [priceData, setPriceData] = useState({})
+  // Fallback images for items without priced product images
+  const [itemImages, setItemImages] = useState({})
   const [favIngredients, setFavIngredients] = useState(() => new Set())
   const [error, setError] = useState('')
   const [stores, setStores] = useState([])
@@ -52,6 +55,17 @@ export default function ShoppingList() {
 
       if (error) throw error
       setShoppingItems(data || [])
+      // Pre-hydrate any cached images for smoother UI
+      if (data && data.length) {
+        const cached = {}
+        for (const it of data) {
+          const u = loadImageFromCache(it.ingredient_name)
+          if (u) cached[it.id] = u
+        }
+        if (Object.keys(cached).length) setItemImages((prev) => ({ ...prev, ...cached }))
+        // Defer image fetch queue a bit to avoid competing with pricing
+        setTimeout(() => queueImagesForMissing(data), 300)
+      }
       
       // Auto-fetch prices only if a store is selected
       if (data && data.length > 0 && selectedStore) {
@@ -62,6 +76,52 @@ export default function ShoppingList() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Concurrency-limited image fetch for items that lack priced images
+  const queueImagesForMissing = async (items) => {
+    const CONCURRENCY = 3
+    const pending = items.filter((it) => {
+      const priced = priceData[it.ingredient_name]
+      const hasImage = priced?.image || itemImages[it.id]
+      return !hasImage
+    })
+    if (!pending.length) return
+    let active = 0
+    const next = () => {
+      if (!pending.length || active >= CONCURRENCY) return
+      const it = pending.shift()
+      active += 1
+      loadImageForItem(it).finally(() => {
+        active -= 1
+        next()
+      })
+      next()
+    }
+    next()
+  }
+
+  const pickSmallestImage = (product) => {
+    try {
+      const sizes = product?.images?.[0]?.sizes || []
+      if (!Array.isArray(sizes) || !sizes.length) return null
+      const sorted = [...sizes].sort((a, b) => (a.width || 0) - (b.width || 0))
+      return sorted[0]?.url || sizes[0]?.url || null
+    } catch { return null }
+  }
+
+  const loadImageForItem = async (item) => {
+    if (itemImages[item.id]) return
+    const cached = loadImageFromCache(item.ingredient_name)
+    if (cached) { setItemImages((prev) => ({ ...prev, [item.id]: cached })); return }
+    try {
+      const products = await krogerAPI.searchProducts(item.ingredient_name)
+      const img = pickSmallestImage(products?.[0])
+      if (img) {
+        saveImageToCache(item.ingredient_name, img)
+        setItemImages((prev) => ({ ...prev, [item.id]: img }))
+      }
+    } catch {}
   }
 
   const loadFavs = async () => {
@@ -307,15 +367,20 @@ export default function ShoppingList() {
         ) : (
           shoppingItems.map((item) => {
             const krogerProduct = priceData[item.ingredient_name]
+            const imgSrc = krogerProduct?.image || itemImages[item.id]
             return (
               <div key={item.id} className="shopping-item">
-                {krogerProduct?.image && (
+                {imgSrc && (
                   <img
-                    src={krogerProduct.image}
-                    alt={item.ingredient_name}
+                    src={imgSrc}
+                    alt={item.ingredient_name || 'Product image'}
                     className="product-image"
                     loading="lazy"
                     decoding="async"
+                    width={60}
+                    height={60}
+                    fetchPriority="low"
+                    referrerPolicy="strict-origin-when-cross-origin"
                   />
                 )}
                 <div className="item-info">
@@ -350,6 +415,7 @@ export default function ShoppingList() {
                       onClick={() => toggleFavIngredient(item.ingredient_name)}
                       className="pantry-btn"
                       title={favIngredients.has(String(item.ingredient_name)) ? 'Unfavorite' : 'Favorite'}
+                      aria-label={favIngredients.has(String(item.ingredient_name)) ? 'Remove from favorites' : 'Add to favorites'}
                     >
                       {favIngredients.has(String(item.ingredient_name)) ? '★' : '☆'}
                     </button>
@@ -357,6 +423,7 @@ export default function ShoppingList() {
                     onClick={() => moveToCart(item)}
                     className="pantry-btn"
                     title="Move to pantry"
+                    aria-label="Move to pantry"
                   >
                     🥫
                   </button>
@@ -364,6 +431,7 @@ export default function ShoppingList() {
                     onClick={() => deleteShoppingItem(item.id)}
                     className="delete-btn"
                     title="Delete item"
+                    aria-label="Delete item"
                   >
                     🗑️
                   </button>

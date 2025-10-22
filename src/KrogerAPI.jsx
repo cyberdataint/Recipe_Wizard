@@ -189,6 +189,15 @@ class KrogerAPI {
     // Return the first (most relevant) product
     const product = products[0]
     const firstItem = product.items?.[0] || {}
+    // Prefer the smallest available product image to save bandwidth and improve load probability
+    let imageUrl = null
+    try {
+      const sizes = product.images?.[0]?.sizes || []
+      if (Array.isArray(sizes) && sizes.length) {
+        const sorted = [...sizes].sort((a, b) => (a.width || 0) - (b.width || 0))
+        imageUrl = sorted[0]?.url || sizes[0]?.url || null
+      }
+    } catch {}
     const price = firstItem?.price?.regular || 0
     const promoPrice = firstItem?.price?.promo || null
     const aisleLoc = firstItem?.aisleLocations?.[0] || null
@@ -206,7 +215,7 @@ class KrogerAPI {
       regularPrice: price,
       onSale: !!promoPrice,
       size: firstItem?.size || '',
-      image: product.images?.[0]?.sizes?.[0]?.url || null,
+  image: imageUrl,
       upc: product.upc,
       aisle: aisleText,
       aisleRaw: aisleLoc || null,

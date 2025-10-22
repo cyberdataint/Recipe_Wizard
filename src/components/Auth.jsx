@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import './Auth.css'
+import { useNavigate } from 'react-router-dom'
 
 export default function Auth() {
   const [isSignUp, setIsSignUp] = useState(false)
@@ -8,8 +9,13 @@ export default function Auth() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
+  const navigate = useNavigate()
+  const { user, signIn, signUp } = useAuth()
 
-  const { signIn, signUp } = useAuth()
+  // If already logged in (or after a successful login), send to Recipes page
+  useEffect(() => {
+    if (user) navigate('/recipes', { replace: true })
+  }, [user, navigate])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -24,6 +30,8 @@ export default function Auth() {
       } else {
         const { error } = await signIn(email, password)
         if (error) throw error
+        // navigate will also be triggered by the auth state change; this is an extra safeguard
+        navigate('/recipes', { replace: true })
       }
     } catch (error) {
       setMessage(error.message)

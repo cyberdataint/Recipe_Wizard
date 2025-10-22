@@ -140,6 +140,15 @@ export async function onRequest(context) {
         if (aisleLoc?.description) aisleParts.push(aisleLoc.description);
         if (aisleLoc?.bayNumber) aisleParts.push(`Bay ${aisleLoc.bayNumber}`);
         const aisleText = aisleParts.length ? aisleParts.join(' • ') : null;
+        // Prefer the smallest available product image to improve load and reduce bytes
+        let imageUrl = null;
+        try {
+          const sizes = product.images?.[0]?.sizes || [];
+          if (Array.isArray(sizes) && sizes.length) {
+            const sorted = [...sizes].sort((a, b) => (a.width || 0) - (b.width || 0));
+            imageUrl = sorted[0]?.url || sizes[0]?.url || null;
+          }
+        } catch {}
         return {
           productId: product.productId,
           description: product.description,
@@ -148,7 +157,7 @@ export async function onRequest(context) {
           regularPrice: price,
           onSale: !!promoPrice,
           size: firstItem?.size || '',
-          image: product.images?.[0]?.sizes?.[0]?.url || null,
+          image: imageUrl,
           upc: product.upc,
           aisle: aisleText,
           aisleRaw: aisleLoc || null,
