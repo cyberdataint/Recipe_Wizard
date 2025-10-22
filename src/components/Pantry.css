@@ -213,6 +213,63 @@
   border-radius: 10px;
 }
 
+/* Pantry-only generator UI */
+.pantry-gen {
+  margin-top: 1.5rem;
+  background: #fff;
+  padding: 1rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+.pantry-gen .gen-header { display: flex; align-items: center; gap: 0.5rem; }
+.pantry-gen h3 { margin: 0; color: #333; }
+.suggestions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+.recipe-card {
+  background: #f8f9fa;
+  border-radius: 10px;
+  padding: 0.75rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.recipe-title { font-weight: 800; color: #333; }
+.ingredients-mini { margin: 0; padding-left: 1rem; color: #555; font-size: 0.9rem; }
+
+/* Modal reused style snippets to match MealPlanner */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+}
+.modal-content {
+  background: #fff; border-radius: 12px; max-width: 760px; width: 92%; max-height: 90vh; overflow: auto;
+  padding: 1rem 1rem 1.25rem 1rem; position: relative;
+}
+.modal-close { position: absolute; top: 8px; right: 8px; border: none; background: #f3f4f6; border-radius: 6px; padding: 6px 8px; cursor: pointer; }
+.modal-image { width: 100%; border-radius: 10px; object-fit: cover; margin: 0.5rem 0; }
+.recipe-section h3 { margin: 0.5rem 0; }
+.ingredients-list { margin: 0; padding-left: 1.2rem; }
+.instructions-list { margin: 0; padding-left: 1.2rem; }
+.ingredient-amount { font-weight: 600; }
+
+/* Buttons matching planner look */
+.gen-btn {
+  padding: 0.6rem 0.9rem;
+  background: #6b6ef5;
+  color: #fff;
+  border: 0;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.gen-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
 @media (max-width: 768px) {
   .add-item-form {
     grid-template-columns: 1fr;
