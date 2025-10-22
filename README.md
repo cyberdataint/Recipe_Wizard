@@ -131,6 +131,7 @@ Recipe_Wizard/
 │   ├── main.jsx                     # React entry point
 │   ├── Supabase.jsx                 # Supabase client configuration
 │   ├── KrogerAPI.jsx                # Kroger API service with OAuth
+│   ├── FavoritesAPI.jsx             # Supabase helpers for favorites (recipes/ingredients)
 │   ├── components/
 │   │   ├── Recipes.jsx              # Recipe search (Spoonacular)
 │   │   ├── Pantry.jsx               # Pantry management (Supabase)
@@ -146,3 +147,16 @@ Recipe_Wizard/
 ├── .env                             # Environment variables (create this)
 └── package.json                     # Dependencies and scripts
 ```
+
+## ⭐ Favorites (Recipes & Ingredients)
+
+This app supports favoriting recipes and ingredients per user using Supabase. Add a star next to a recipe or shopping-list ingredient to save it.
+
+
+## 📍 Use My Location (Store Picker)
+
+The Store Picker now supports a "Use my location" button. When clicked, your browser (Edge, Chrome, or Firefox) asks for permission to access your location. If granted, it finds nearby Kroger stores using latitude/longitude and fills the ZIP automatically from the nearest store. You can still search by ZIP manually.
+
+Troubleshooting:
+- If your browser blocks location, allow it in site permissions.
+- On desktop, geolocation may use IP-based estimates; results can be broader than on mobile.

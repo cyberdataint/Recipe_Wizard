@@ -1,0 +1,63 @@
+.storepicker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.storepicker .sp-label { font-weight: 700; color: #374151; }
+.storepicker .zip-input {
+  padding: 0.6rem;
+  width: 7rem;
+  border-radius: 8px;
+  border: 2px solid #e0e0e0;
+}
+.storepicker .radius-select {
+  padding: 0.6rem;
+  border-radius: 8px;
+  border: 2px solid #e0e0e0;
+}
+.storepicker .find-btn {
+  padding: 0.6rem 0.9rem;
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 8px;
+  color: #374151 !important;
+}
+.storepicker .find-btn:hover,
+.storepicker .refresh-prices-btn:hover { background: #f3f4f6 !important; color: #374151 !important; }
+.storepicker .refresh-prices-btn { background: #ffffff !important; color: #374151 !important; border: 1px solid #e5e7eb !important; border-radius: 8px; }
+.storepicker .panel {
+  position: absolute;
+  z-index: 20;
+  margin-top: 8px;
+  background: #ffffff;
+  color: #222;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+  width: min(680px, 92vw);
+  max-height: 360px;
+  overflow: auto;
+}
+.storepicker .panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(0,0,0,0.08);
+}
+.storepicker .results {
+  padding: 6px 6px 8px 6px;
+}
+.storepicker .item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.storepicker .item:hover { background: #f4f6ff; }
+.storepicker .name { font-weight: 600; }
+.storepicker .meta { font-size: 0.9rem; color: #444; }
+.storepicker .distance { font-weight: 600; color: #5b6cf0; }
+.storepicker .select-btn { padding: 0.45rem 0.7rem; }
+.storepicker .empty { padding: 12px; color: #555; }

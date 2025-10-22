@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './Chat.css'
 import { useAuth } from '../contexts/AuthContext'
+import { useData } from '../contexts/DataContext'
 import supabase from '../Supabase'
 
 // Note: Using the Gemini API directly from the browser exposes your API key to users.
@@ -8,6 +9,7 @@ import supabase from '../Supabase'
 export default function Chat() {
   const apiKey = (import.meta.env.VITE_GEMINI_API_KEY || '').trim()
   const { user } = useAuth()
+  const { refreshPantry } = useData()
   const [messages, setMessages] = useState([
     { role: 'assistant', text: 'Hi! I\'m your cooking assistant. Ask me for recipes, substitutions, meal ideas, or cooking tips. I can also add ingredients to your shopping list if you need!', isGreeting: true }
   ])
@@ -17,6 +19,24 @@ export default function Chat() {
   const [functionStatus, setFunctionStatus] = useState('')
   const [loadingHistory, setLoadingHistory] = useState(true)
   const [isExpanded, setIsExpanded] = useState(false)
+
+  // Simple on-topic guard: allow only cooking/recipe/ingredient/kitchen-related queries
+  const isCookingRelated = (text) => {
+    if (!text) return false
+    const t = text.toLowerCase()
+    // Keywords cover recipes, techniques, ingredients, tools, meal planning, nutrition
+    const keywords = [
+      'recipe','cook','cooking','bake','baking','roast','grill','saute','sauté','fry','broil','steam','simmer','sear',
+      'ingredient','ingredients','substitution','substitute','swap','measure','teaspoon','tablespoon','cup','ounces','grams','ml','liter',
+      'pan','pot','oven','stovetop','air fryer','instant pot','slow cooker','pressure cooker','mixer','whisk','spatula','knife','cutting board',
+      'meal','lunch','dinner','breakfast','brunch','snack','dessert','appetizer','soup','stew','salad','sauce','marinade','rub','seasoning',
+      'marinate','knead','proof','rise','dough','batter','glaze','reduce','deglaze',
+      'nutrition','calorie','protein','carb','fat','macro','vegetarian','vegan','gluten','dairy','allergy','intolerance','kosher','halal',
+      'grocery','shopping list','pantry','leftovers','storage','food safety','thaw','defrost','reheat',
+      'spice','herb','season','salt','pepper','garlic','onion','oil','butter','flour','sugar','yeast','stock','broth','vinegar'
+    ]
+    return keywords.some(k => t.includes(k))
+  }
 
   // Lazy-load SDK only when needed to keep initial bundle light
   const sdkPromiseRef = useRef(null)
@@ -267,7 +287,7 @@ export default function Chat() {
       return { success: true, results: results.join(', ') }
     }
     
-    if (name === 'add_to_pantry') {
+  if (name === 'add_to_pantry') {
       const { items } = args
       if (!items || !Array.isArray(items)) {
         console.error('Invalid items array:', items)
@@ -306,6 +326,8 @@ export default function Chat() {
         }
       }
       setFunctionStatus(`✓ Added ${successCount}/${items.length} items to pantry`)
+      // Refresh pantry cache in context
+      try { await refreshPantry() } catch {}
       setTimeout(() => setFunctionStatus(''), 3000)
       return { success: true, results: results.join(', ') }
     }
@@ -326,6 +348,10 @@ export default function Chat() {
         }
       },
       systemInstruction: `You are a helpful cooking assistant for Recipe Wizard.
+
+Scope restriction - CRITICAL:
+- You must only discuss topics related to food, cooking, recipes, ingredients, kitchen equipment, food safety, meal planning, and nutrition.
+- If the user asks about anything off-topic (e.g., politics, programming, finance, general knowledge, entertainment), refuse briefly and steer back to cooking topics. Do NOT answer off-topic.
 
 Primary capabilities:
 1. Help with recipes, cooking questions, ingredient substitutions, and meal planning
@@ -376,6 +402,14 @@ Be friendly and conversational. Answer cooking questions directly with knowledge
     await saveChatMessage('user', userText)
 
     try {
+      // Enforce scope before calling the model to save tokens and avoid off-topic replies
+      if (!isCookingRelated(userText)) {
+        const refusal = "I'm focused on cooking and recipes. Ask me about ingredients, techniques, meal ideas, or I can add items to your lists."
+        setMessages(prev => [...prev, { role: 'model', text: refusal }])
+        await saveChatMessage('model', refusal)
+        return
+      }
+
       const chat = chatRef.current || await ensureChat()
       let result = await chat.sendMessage(userText)
       let response = result.response

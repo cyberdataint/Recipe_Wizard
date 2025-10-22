@@ -309,7 +309,8 @@
 }
 
 @media (max-width: 768px) {
-  .add-item-form {
+  /* Stack inputs on small screens to avoid horizontal overflow */
+  .add-item-form .inputs {
     grid-template-columns: 1fr;
   }
   .header {
@@ -321,5 +322,13 @@
   }
   .items-list {
     grid-template-columns: repeat(2, 1fr);
+  }
+  .add-item-form .add-btn button { width: 100%; }
+}
+
+/* Medium screens: reduce to three columns */
+@media (max-width: 1024px) and (min-width: 769px) {
+  .add-item-form .inputs {
+    grid-template-columns: 1.5fr 1fr 1fr;
   }
 }

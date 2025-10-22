@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import krogerAPI from '../KrogerAPI'
+import favoritesAPI from '../FavoritesAPI'
 import { useAuth } from '../contexts/AuthContext'
 import supabase from '../Supabase'
 import './Pantry.css'
@@ -19,12 +20,14 @@ export default function Pantry() {
   const [searchQuery, setSearchQuery] = useState('')
   const [spoonacularResults, setSpoonacularResults] = useState([])
   const [searchingIngredients, setSearchingIngredients] = useState(false)
+  const [favIngredients, setFavIngredients] = useState(() => new Set())
 
   const SPOONACULAR_API_KEY = import.meta.env.VITE_SPOONACULAR_API_KEY
 
   useEffect(() => {
     if (user) {
       fetchPantryItems()
+      loadFavs()
     }
   }, [user])
 
@@ -60,6 +63,14 @@ export default function Pantry() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const loadFavs = async () => {
+    try {
+      if (!user) { setFavIngredients(new Set()); return }
+      const list = await favoritesAPI.listFavorites(user.id, 'ingredient')
+      setFavIngredients(new Set(list.map((f) => String(f.key))))
+    } catch (e) {}
   }
 
   const searchSpoonacularIngredients = async () => {
@@ -130,6 +141,21 @@ export default function Pantry() {
       fetchPantryItems()
     } catch (error) {
       console.error('Error deleting pantry item:', error)
+    }
+  }
+
+  const toggleFavIngredient = async (name) => {
+    if (!user) { alert('Please sign in to save favorites'); return }
+    const key = String(name)
+    try {
+      const res = await favoritesAPI.toggleFavorite({ userId: user.id, type: 'ingredient', key, title: name })
+      setFavIngredients((prev) => {
+        const next = new Set(prev)
+        if (res.favorited) next.add(key); else next.delete(key)
+        return next
+      })
+    } catch (e) {
+      alert('Could not update favorite')
     }
   }
 
@@ -227,13 +253,22 @@ export default function Pantry() {
                 </p>
                 {item.notes && <p className="notes">{item.notes}</p>}
               </div>
-              <button 
-                onClick={() => deletePantryItem(item.id)}
-                className="delete-btn"
-                title="Delete item"
-              >
-                🗑️
-              </button>
+              <div className="item-actions">
+                <button
+                  onClick={() => toggleFavIngredient(item.ingredient_name)}
+                  className="pantry-btn"
+                  title={favIngredients.has(String(item.ingredient_name)) ? 'Unfavorite' : 'Favorite'}
+                >
+                  {favIngredients.has(String(item.ingredient_name)) ? '★' : '☆'}
+                </button>
+                <button 
+                  onClick={() => deletePantryItem(item.id)}
+                  className="delete-btn"
+                  title="Delete item"
+                >
+                  🗑️
+                </button>
+              </div>
             </div>
           ))
         )}

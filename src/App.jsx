@@ -1,6 +1,7 @@
 import { useState, lazy, Suspense, startTransition } from 'react'
 import './App.css'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { DataProvider } from './contexts/DataContext'
 import Auth from './components/Auth'
 import TopNav from './components/TopNav'
 
@@ -9,6 +10,7 @@ const Pantry = lazy(() => import('./components/Pantry'))
 const ShoppingList = lazy(() => import('./components/ShoppingList'))
 const Recipes = lazy(() => import('./components/Recipes'))
 const Chat = lazy(() => import('./components/Chat'))
+const MealPlanner = lazy(() => import('./components/MealPlanner'))
 
 function AppShell() {
   const { user, signOut } = useAuth()
@@ -34,11 +36,13 @@ function AppShell() {
         {tab === 'recipes' && <><h1>🍳 Recipe Wizard</h1><p>Search for delicious recipes with detailed ingredients!</p></>}
         {tab === 'pantry' && <><h1>🥫 Pantry</h1><p>Manage ingredients you already have.</p></>}
         {tab === 'shopping' && <><h1>🛒 Shopping List</h1><p>Track what you need to buy.</p></>}
+        {tab === 'planner' && <><h1>📆 Meal Planner</h1><p>Generate a smart weekly plan, grocery list, and prep steps.</p></>}
       </header>
       <Suspense fallback={null}>
         {tab === 'recipes' && <Recipes />}
         {tab === 'pantry' && <div className="main-container"><Pantry /></div>}
         {tab === 'shopping' && <div className="main-container"><ShoppingList /></div>}
+        {tab === 'planner' && <div className="main-container"><MealPlanner /></div>}
         {/* Floating Chat Widget - always visible when authenticated */}
         <Chat />
       </Suspense>
@@ -49,7 +53,9 @@ function AppShell() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppShell />
+      <DataProvider>
+        <AppShell />
+      </DataProvider>
     </AuthProvider>
   )
 }
