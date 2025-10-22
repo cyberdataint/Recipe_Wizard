@@ -26,6 +26,46 @@ class KrogerAPI {
     this.baseUrl = 'https://api.kroger.com/v1'
   // Selected store locationId, persisted in localStorage (no default)
   this.locationId = localStorage.getItem('kroger_location_id') || null
+  // In-memory cache for ingredient -> product by store
+  this._priceCache = new Map()
+  this._priceCacheTTL = 15 * 60 * 1000 // 15 minutes
+  this._priceCacheKey = 'kroger_price_cache_v1'
+  this._priceCacheMax = 500
+  this._loadCacheFromSession()
+  }
+
+  _now() { return Date.now() }
+  _norm(s) { return (s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() }
+  _loadCacheFromSession() {
+    try {
+      const raw = sessionStorage.getItem(this._priceCacheKey)
+      if (!raw) return
+      const obj = JSON.parse(raw)
+      const now = this._now()
+      for (const [key, val] of Object.entries(obj || {})) {
+        if (val && typeof val === 'object' && typeof val.ts === 'number') {
+          if ((now - val.ts) < this._priceCacheTTL) {
+            this._priceCache.set(key, val)
+          }
+        }
+      }
+    } catch {}
+  }
+  _persistCacheToSession() {
+    try {
+      // Enforce max size: drop oldest entries if needed
+      if (this._priceCache.size > this._priceCacheMax) {
+        const drop = this._priceCache.size - this._priceCacheMax
+        let i = 0
+        for (const k of this._priceCache.keys()) {
+          this._priceCache.delete(k)
+          if (++i >= drop) break
+        }
+      }
+      const obj = {}
+      for (const [k, v] of this._priceCache.entries()) obj[k] = v
+      sessionStorage.setItem(this._priceCacheKey, JSON.stringify(obj))
+    } catch {}
   }
 
   // Get OAuth access token (via proxy or direct)
@@ -176,54 +216,83 @@ class KrogerAPI {
 
   // Batch search for multiple ingredients
   async findMultipleIngredients(ingredients) {
-  if (this.useProxy) {
-      // Use proxy batch endpoint with chunking to avoid serverless timeouts
-      const list = (ingredients || []).filter(Boolean)
-      const chunkSize = 8
-      const out = []
-      const token = await this.getAccessToken()
-      for (let i = 0; i < list.length; i += chunkSize) {
-        const chunk = list.slice(i, i + chunkSize)
-        try {
-          const response = await fetch(`${this.proxyUrl}/batch-search`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ terms: chunk, ...(this.locationId ? { locationId: this.locationId } : {}) })
-          })
+    const list = (ingredients || []).filter(Boolean)
+    if (list.length === 0) return []
 
-          if (!response.ok) {
-            throw new Error(`Batch search failed: ${response.status}`)
+    const storeKey = String(this.locationId || 'none')
+    const out = []
+    const toFetch = []
+    const now = this._now()
+
+    // Check cache first
+    for (const term of list) {
+      const key = `${storeKey}|${this._norm(term)}`
+      const cached = this._priceCache.get(key)
+      if (cached && (now - cached.ts) < this._priceCacheTTL) {
+        out.push({ ingredient: term, product: cached.product || null, error: null })
+      } else {
+        toFetch.push(term)
+      }
+    }
+
+    if (toFetch.length === 0) return out
+
+    const chunkSize = 10
+
+    if (this.useProxy) {
+      const token = await this.getAccessToken()
+      const chunkPromises = []
+      for (let i = 0; i < toFetch.length; i += chunkSize) {
+        const chunk = toFetch.slice(i, i + chunkSize)
+        const body = { terms: chunk, ...(this.locationId ? { locationId: this.locationId } : {}) }
+        const p = (async () => {
+          try {
+            const response = await fetch(`${this.proxyUrl}/batch-search`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify(body)
+            })
+            if (!response.ok) throw new Error(`Batch search failed: ${response.status}`)
+            const batch = await response.json()
+            return batch
+          } catch (err) {
+            if (import.meta.env.DEV) console.error('Batch chunk failed, falling back to per-item:', err)
+            const results = await Promise.allSettled(chunk.map(ing => this.findIngredient(ing)))
+            return results.map((result, index) => ({
+              ingredient: chunk[index],
+              product: result.status === 'fulfilled' ? result.value : null,
+              error: result.status === 'rejected' ? result.reason : null
+            }))
           }
-          const batch = await response.json()
-          out.push(...batch)
-        } catch (error) {
-            if (import.meta.env.DEV) console.error('Batch chunk failed, falling back to per-item:', error)
-          const results = await Promise.allSettled(
-            chunk.map(ing => this.findIngredient(ing))
-          )
-          out.push(...results.map((result, index) => ({
-            ingredient: chunk[index],
-            product: result.status === 'fulfilled' ? result.value : null,
-            error: result.status === 'rejected' ? result.reason : null
-          })))
+        })()
+        chunkPromises.push(p)
+      }
+      const settled = await Promise.allSettled(chunkPromises)
+      for (const s of settled) {
+        if (s.status === 'fulfilled') {
+          for (const r of s.value) {
+            const key = `${storeKey}|${this._norm(r.ingredient)}`
+            this._priceCache.set(key, { product: r.product || null, ts: now })
+            this._persistCacheToSession()
+            out.push(r)
+          }
         }
       }
       return out
     } else {
-      // Direct API calls (will hit CORS in browser)
-      const results = await Promise.allSettled(
-        ingredients.map(ing => this.findIngredient(ing))
-      )
-
-      // (silenced in production)
-      return results.map((result, index) => ({
-        ingredient: ingredients[index],
-        product: result.status === 'fulfilled' ? result.value : null,
-        error: result.status === 'rejected' ? result.reason : null
-      }))
+      const results = await Promise.allSettled(toFetch.map(ing => this.findIngredient(ing)))
+      results.forEach((res, idx) => {
+        const ingredient = toFetch[idx]
+        const product = res.status === 'fulfilled' ? res.value : null
+        const key = `${storeKey}|${this._norm(ingredient)}`
+        this._priceCache.set(key, { product, ts: now })
+        this._persistCacheToSession()
+        out.push({ ingredient, product, error: res.status === 'rejected' ? res.reason : null })
+      })
+      return out
     }
   }
 

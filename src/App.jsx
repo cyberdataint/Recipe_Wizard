@@ -1,6 +1,7 @@
 import { useState, lazy, Suspense, startTransition } from 'react'
 import './App.css'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { DataProvider } from './contexts/DataContext'
 import Auth from './components/Auth'
 import TopNav from './components/TopNav'
 
@@ -52,7 +53,9 @@ function AppShell() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppShell />
+      <DataProvider>
+        <AppShell />
+      </DataProvider>
     </AuthProvider>
   )
 }

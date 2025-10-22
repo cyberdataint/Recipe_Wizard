@@ -1,14 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import './MealPlanner.css'
 import { useAuth } from '../contexts/AuthContext'
+import { useData } from '../contexts/DataContext'
 import supabase from '../Supabase'
 import krogerAPI from '../KrogerAPI'
 import StorePicker from './StorePicker'
+import { getModel as getGeminiModel, parseModelJson } from '../services/geminiService'
+import { norm, collectWeekTitles, enforceDiversity, getSubstitutionTip } from '../utils/planUtils'
+import UITooltip from './UITooltip'
+import { fetchRecipeByTitle as fetchRecipeByTitleSvc } from '../services/spoonacularService'
 
 export default function MealPlanner() {
   const apiKey = (import.meta.env.VITE_GEMINI_API_KEY || '').trim()
   const SPOON_KEY = (import.meta.env.VITE_SPOONACULAR_API_KEY || '').trim()
   const { user } = useAuth()
+  const { favRecipeTitles: ctxFavRecipes, favIngredients: ctxFavIngs, pantryItems: ctxPantry } = useData()
 
   const [servings, setServings] = useState(4)
   const [budget, setBudget] = useState('')
@@ -36,6 +42,10 @@ export default function MealPlanner() {
   const [sendStatus, setSendStatus] = useState('')
   const [autoFitBudget, setAutoFitBudget] = useState(false)
   const [budgetNote, setBudgetNote] = useState('')
+  // Tooltip state (portal-based to avoid clipping inside scroll areas)
+  const [tipOpen, setTipOpen] = useState(false)
+  const [tipText, setTipText] = useState('')
+  const [tipRect, setTipRect] = useState(null)
 
   // Preference options and state
   const PROTEIN_OPTIONS = ['chicken','beef','pork','turkey','fish','seafood','tofu','tempeh','eggs','beans','lentils']
@@ -73,7 +83,7 @@ export default function MealPlanner() {
   const pantrySetRef = useRef(new Set())
   const favTitleSetRef = useRef(new Set())
   const refineAttemptsRef = useRef(0)
-  const MAX_REFINE_ATTEMPTS = 20
+  const MAX_REFINE_ATTEMPTS = 10
   const dietOptions = [
     { value: 'any', label: 'Any' },
     { value: 'vegetarian', label: 'Vegetarian' },
@@ -84,10 +94,7 @@ export default function MealPlanner() {
     { value: 'paleo', label: 'Paleo' }
   ]
 
-  const ensureSdk = async () => {
-    const mod = await import('@google/generative-ai')
-    return mod
-  }
+  
 
   const toggleSelect = (list, setter, value) => {
     if (list.includes(value)) setter(list.filter(v => v !== value))
@@ -106,47 +113,7 @@ export default function MealPlanner() {
   const saveRecentTitles = (titles) => {
     try { localStorage.setItem(RECENT_KEY, JSON.stringify(Array.from(new Set(titles)).slice(-60))) } catch {}
   }
-  const collectWeekTitles = (week) => {
-    const out = []
-    for (const d of (week || [])) {
-      const meals = d?.meals || {}
-      for (const k of ['breakfast','lunch','dinner']) {
-        const t = meals?.[k]
-        if (!t) continue
-        if (/^leftover/i.test(t)) continue
-        out.push(t)
-      }
-    }
-    return out
-  }
-  const hasDuplicates = (titles) => {
-    const seen = new Set()
-    for (const t of titles.map((s) => (s || '').toLowerCase().trim())) {
-      if (seen.has(t)) return true
-      seen.add(t)
-    }
-    return false
-  }
-  const enforceDiversity = async (wk, doNotRepeat, apiKeyLocal = apiKey) => {
-    const titles = collectWeekTitles(wk)
-    if (!hasDuplicates(titles)) return wk
-    try {
-      const { GoogleGenerativeAI } = await ensureSdk()
-      const genAI = new GoogleGenerativeAI(apiKeyLocal)
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
-      const instructions = {
-        rule: 'Replace duplicate recipes with new distinct recipes. No repeated titles across the week. Keep servings, days, and meals the same.',
-        avoidTitles: (doNotRepeat || []).slice(-60)
-      }
-      const text = `\nDe-duplicate this meal plan. Return only the week array, same shape.\nCurrent week:\n${JSON.stringify(wk, null, 2)}\nInstructions:\n${JSON.stringify(instructions, null, 2)}`
-      const res = await model.generateContent(text)
-      const raw = res.response.text()
-      let data
-      try { data = JSON.parse(raw) } catch { const m = raw.match(/\[[\s\S]*\]/); data = m ? JSON.parse(m[0]) : null }
-      const newWeek = Array.isArray(data) ? data : wk
-      return newWeek
-    } catch { return wk }
-  }
+  
 
   const generate = async () => {
     if (!apiKey) {
@@ -169,29 +136,19 @@ export default function MealPlanner() {
       let pantryItems = []
       if (user) {
         if (useFavorites) {
-          const [{ data: favR }, { data: favI }] = await Promise.all([
-            supabase.from('favorites').select('title').eq('user_id', user.id).eq('type', 'recipe').limit(50),
-            supabase.from('favorites').select('key, title').eq('user_id', user.id).eq('type', 'ingredient').limit(80)
-          ])
-          favRecipeTitles = (favR || []).map(r => r.title).filter(Boolean)
-          favIngredients = (favI || []).map(i => i.key || i.title).filter(Boolean)
+          favRecipeTitles = (ctxFavRecipes || []).slice(0, 50)
+          favIngredients = (ctxFavIngs || []).slice(0, 80)
         }
         if (usePantry) {
-          const { data: pantry } = await supabase.from('pantry_items').select('ingredient_name').eq('user_id', user.id).limit(100)
-          pantryItems = (pantry || []).map(p => p.ingredient_name)
+          pantryItems = (ctxPantry || []).slice(0, 120)
         }
       }
       favTitleSetRef.current = new Set(favRecipeTitles)
       pantrySetRef.current = new Set((pantryItems || []).map((n) => norm(n)))
 
-      const { GoogleGenerativeAI } = await ensureSdk()
-      const genAI = new GoogleGenerativeAI(apiKey)
-      const model = genAI.getGenerativeModel({
-        model: 'gemini-2.0-flash',
-        generationConfig: { temperature: 0.9, topP: 0.95 }
-      })
+      const model = await getGeminiModel(apiKey, { temperature: 0.9, topP: 0.95 })
 
-      const system = 'You are a meal planning assistant. Output strict JSON only, no prose.'
+  const system = 'You are a meal planning assistant. Output strict JSON only, no prose.'
       const recentTitles = loadRecentTitles()
       const cuisines = preferredCuisinesText.split(',').map(s => s.trim()).filter(Boolean).slice(0, 10)
       const avoidIngredientsArr = avoidIngredientsText.split(',').map(s => s.trim()).filter(Boolean).slice(0, 30)
@@ -246,14 +203,8 @@ export default function MealPlanner() {
       const res = await model.generateContent(text)
       const raw = res.response.text()
 
-      let data
-      try {
-        data = JSON.parse(raw)
-      } catch {
-        const match = raw.match(/\{[\s\S]*\}/)
-        if (match) data = JSON.parse(match[0])
-        else throw new Error('Model did not return JSON')
-      }
+      let data = parseModelJson(raw)
+      if (!data) throw new Error('Model did not return JSON')
 
       let wk = Array.isArray(data.week) ? data.week.slice(0, days) : []
       // One-pass de-duplication refinement using Gemini if duplicates found
@@ -267,6 +218,7 @@ export default function MealPlanner() {
   setPlan(next)
 
       // Seed recipeDetails from Gemini so the modal has steps immediately
+      let seedFromModel = null
       if (data.recipes && typeof data.recipes === 'object') {
         const mapped = {}
         for (const [title, rec] of Object.entries(data.recipes)) {
@@ -285,12 +237,13 @@ export default function MealPlanner() {
           }
         }
         setRecipeDetails((prev) => ({ ...prev, ...mapped }))
+        seedFromModel = mapped
       }
   // Persist recent titles to discourage repeats in future generations
   const finalTitles = collectWeekTitles(wk)
   saveRecentTitles(recentTitles.concat(finalTitles))
   // Analyze and optionally fit to budget
-      const result = await analyzePlan(wk)
+  const result = await analyzePlan(wk, seedFromModel)
       if (autoFitBudget && Number(budget) > 0 && result?.estCost != null && result.estCost > Number(budget)) {
         await regenerateWithinBudget({ currentWeek: wk, currentCost: result.estCost })
       }
@@ -302,8 +255,7 @@ export default function MealPlanner() {
     }
   }
 
-  // Normalize a simple name for aggregation
-  const norm = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+  // norm is imported from utils/planUtils
 
   const getDistinctRecipeTitles = (week) => {
     const titles = []
@@ -319,23 +271,14 @@ export default function MealPlanner() {
     return Array.from(new Set(titles))
   }
 
-  const fetchRecipeByTitle = async (title) => {
-    if (!SPOON_KEY) return null
-    try {
-      const url = `https://api.spoonacular.com/recipes/complexSearch?query=${encodeURIComponent(title)}&number=1&addRecipeInformation=true&fillIngredients=true&apiKey=${SPOON_KEY}`
-      const res = await fetch(url)
-      if (!res.ok) return null
-      const data = await res.json()
-      return data?.results?.[0] || null
-    } catch { return null }
-  }
+  const fetchRecipeByTitle = (title) => fetchRecipeByTitleSvc(SPOON_KEY, title)
 
-  const analyzePlan = async (week) => {
+  const analyzePlan = async (week, seedDetails = null) => {
     if (!week || week.length === 0) return
     setAnalyzing(true)
     try {
       const titles = getDistinctRecipeTitles(week)
-      const details = { ...recipeDetails }
+      const details = { ...(seedDetails || {}), ...recipeDetails }
       // If user opted to use favorites and Spoonacular key is available, enrich only those titles
       if (useFavorites && SPOON_KEY) {
         for (const title of titles) {
@@ -350,18 +293,12 @@ export default function MealPlanner() {
       const missingTitles = titles.filter((t) => !details[t])
       if (missingTitles.length > 0) {
         try {
-          const { GoogleGenerativeAI } = await ensureSdk()
-          const genAI = new GoogleGenerativeAI(apiKey)
-          const model = genAI.getGenerativeModel({
-            model: 'gemini-2.0-flash',
-            generationConfig: { temperature: 0.4 }
-          })
+          const model = await getGeminiModel(apiKey, { temperature: 0.4 })
           const schema = `Return JSON object where keys are recipe titles and values are { servings: number, ingredients: [ { name: string, amount?: number, unit?: string } ], instructions: string[] }. Use grocery-friendly names and numeric amounts when possible.`
           const text = `\nYou are a cooking assistant. Output strict JSON only.\n${schema}\nTitles:\n${JSON.stringify(missingTitles, null, 2)}\nJSON:`
           const res = await model.generateContent(text)
           const raw = res.response.text()
-          let obj
-          try { obj = JSON.parse(raw) } catch { const m = raw.match(/\{[\s\S]*\}/); obj = m ? JSON.parse(m[0]) : null }
+          let obj = parseModelJson(raw)
           if (obj && typeof obj === 'object') {
             const mapped = {}
             for (const [title, rec] of Object.entries(obj)) {
@@ -445,7 +382,13 @@ export default function MealPlanner() {
       let localPrices = {}
       let estCalc = null
       if (krogerAPI.locationId && buy.length) {
-        const names = buy.map(i => i.name)
+        // Pre-group unique normalized names to reduce pricing calls
+        const uniqueNameMap = new Map()
+        for (const item of buy) {
+          const k = norm(item.name)
+          if (!uniqueNameMap.has(k)) uniqueNameMap.set(k, item.name)
+        }
+        const names = Array.from(uniqueNameMap.values())
         const res = await krogerAPI.findMultipleIngredients(names)
         const pmap = {}
         let total = 0
@@ -481,9 +424,7 @@ export default function MealPlanner() {
     try {
       refineAttemptsRef.current += 1
       setBudgetNote(`Fitting to budget (attempt ${refineAttemptsRef.current} of ${MAX_REFINE_ATTEMPTS})…`)
-      const { GoogleGenerativeAI } = await ensureSdk()
-      const genAI = new GoogleGenerativeAI(apiKey)
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
+  const model = await getGeminiModel(apiKey)
       const feedback = {
         currentCost,
         targetBudget: Number(budget),
@@ -502,11 +443,30 @@ export default function MealPlanner() {
           extras: { strict_protein_rotation: strictProteinRotation, seasonal_produce: seasonalProduce, whole_grains: wholeGrains, low_processed: lowProcessed, min_unique_dinners: minUniqueDinners ? Number(minUniqueDinners) : undefined, difficulty, one_pan: onePanMeals, batch_cook_friendly: batchCookFriendly }
         }
       }
-      const text = `\nRe-generate meal plan within budget.\nKeep days=${days}, servings=${servings}, diet=${diet}.\nMaintain these preferences (when provided):\n${JSON.stringify(feedback.preferences, null, 2)}\nHere is the current plan to improve:\n${JSON.stringify(currentWeek, null, 2)}\nFeedback:\n${JSON.stringify(feedback, null, 2)}\nReturn the same schema as before.`
+      const system = 'You are a meal planning assistant. Output strict JSON only, no prose.'
+      const schema = `Return JSON with keys:{
+  week: [ { day: string, meals: { breakfast?: string, lunch?: string, dinner?: string } } ],
+  recipes: { [title: string]: { servings: number, ingredients: [ { name: string, amount?: number, unit?: string, note?: string } ], instructions: string[] } },
+  groceryList?: string[],
+  estimatedCost?: number,
+  batchPrep?: string[]
+}
+Rules:
+- Respect user preferences: choose proteins only from preferences.proteins; avoid any ingredients in preferences.avoid_ingredients; prefer cuisines in preferences.cuisines.
+- Strictly avoid all allergens in preferences.allergies.flags and preferences.allergies.other (e.g., no wheat/gluten, tree nuts, peanuts, etc.).
+- Aim for spice level ~ preferences.spice_level when set.
+- Keep dinner cook time under preferences.max_cook_time_minutes when set.
+- If leftovers are allowed, you may schedule 'Leftover X' sparingly; if preferences.leftovers_for_lunch is true, prefer leftover dinners for next-day lunch.
+- If preferences.nutrition.daily_calories is defined, aim for the total daily plan to be within ±10% of this value. Prefer recipes matching preferences.nutrition.style (balanced|high-protein|low-carb|low-fat). If macros (g/day) are provided, keep the day within ±15% of those targets.
+- Consider extras: enforce strict protein rotation when extras.strict_protein_rotation; prefer seasonal produce, whole grains; minimize processed foods; target at least extras.min_unique_dinners different dinner titles if provided; prefer one-pan and batch-cook-friendly recipes when flagged; honor difficulty when set.
+- No duplicate recipe titles across the week. Avoid titles in do_not_repeat.
+- Recipes must include step-by-step instructions (short imperative sentences).
+- Ingredient names should be grocery-friendly (e.g., 'garlic', 'olive oil').
+- If unsure of exact amounts, provide best estimate.`
+      const text = `\n${system}\n${schema}\nRe-generate a full plan that fits the target budget. Keep days=${days}, servings=${servings}, diet=${diet}.\nMaintain these preferences (when provided):\n${JSON.stringify(feedback.preferences, null, 2)}\nHere is the current week array to improve (same shape required):\n${JSON.stringify(currentWeek, null, 2)}\nFeedback (reasoning signal only):\n${JSON.stringify(feedback, null, 2)}\nOutput JSON:`
       const res = await model.generateContent(text)
       const raw = res.response.text()
-      let data
-      try { data = JSON.parse(raw) } catch { const m = raw.match(/\{[\s\S]*\}/); data = m ? JSON.parse(m[0]) : null }
+      let data = parseModelJson(raw)
       if (!data) throw new Error('Budget refinement failed')
       const wk = Array.isArray(data.week) ? data.week.slice(0, days) : []
       const next = {
@@ -517,6 +477,7 @@ export default function MealPlanner() {
       }
       setPlan(next)
       // seed recipe details if provided
+      let seedFromModel = null
       if (data.recipes && typeof data.recipes === 'object') {
         const mapped = {}
         for (const [title, rec] of Object.entries(data.recipes)) {
@@ -528,11 +489,14 @@ export default function MealPlanner() {
           mapped[title] = { title, servings: rec.servings || servings, extendedIngredients, analyzedInstructions }
         }
         setRecipeDetails((prev) => ({ ...prev, ...mapped }))
+        seedFromModel = mapped
       }
-      const result = await analyzePlan(wk)
+      const result = await analyzePlan(wk, seedFromModel)
       if (result?.estCost != null && Number(budget) > 0 && result.estCost > Number(budget)) {
         // Try again if still over budget
         if (refineAttemptsRef.current < MAX_REFINE_ATTEMPTS) {
+          // brief backoff to reduce contention and improve success rate
+          await new Promise((r) => setTimeout(r, 150))
           await regenerateWithinBudget({ currentWeek: wk, currentCost: result.estCost })
         } else {
           setBudgetNote('Still over budget after refinement')
@@ -614,6 +578,20 @@ export default function MealPlanner() {
     }
   }
 
+  const printGroceryList = () => {
+    try {
+      document.body.classList.add('print-grocery')
+      const cleanup = () => document.body.classList.remove('print-grocery')
+      if ('onafterprint' in window) {
+        const handler = () => { window.removeEventListener('afterprint', handler); cleanup() }
+        window.addEventListener('afterprint', handler)
+      } else {
+        setTimeout(cleanup, 1500)
+      }
+      window.print()
+    } catch {}
+  }
+
   return (
     <div className="planner">
       <div className="planner-controls">
@@ -664,7 +642,13 @@ export default function MealPlanner() {
           {plan && <button className="pdf-btn" onClick={exportPdf}>Download PDF</button>}
         </div>
         <div className="row store-row">
-          <StorePicker onSelect={() => { if (plan?.week) analyzePlan(plan.week) }} />
+          <StorePicker onSelect={() => {
+            if (!plan?.week) return
+            if (!plannerRef.current) plannerRef.current = {}
+            if (!plannerRef.current._debounce) plannerRef.current._debounce = null
+            clearTimeout(plannerRef.current._debounce)
+            plannerRef.current._debounce = setTimeout(() => analyzePlan(plan.week), 300)
+          }} />
         </div>
         <details className="advanced">
           <summary>Advanced options</summary>
@@ -854,33 +838,94 @@ export default function MealPlanner() {
                   <button className="send-list-btn" onClick={sendGroceryListToShoppingList} disabled={sending}>
                     {sending ? 'Adding…' : 'Send to Shopping List'}
                   </button>
+                  <button className="send-list-btn" onClick={printGroceryList} title="Print grocery list">Print</button>
                 </div>
               </div>
               {sendStatus && <div className="send-status">{sendStatus}</div>}
               {
-                <div className="grocery-scroll">
+                <div className="grocery-scroll" onScroll={() => setTipOpen(false)}>
                   <ul>
-                  {(buyGroceries.length ? buyGroceries : []).map((g, idx) => (
-                    <li key={idx}>
-                      {g.name} — {g.amount ? g.amount.toFixed(1) : ''} {g.unit || ''}
-                      {prices[norm(g.name)] && (
-                        <span style={{ color:'#28a745', fontWeight:700 }}> • ${prices[norm(g.name)].price.toFixed(2)}</span>
-                      )}
-                    </li>
-                  ))}
+                  {(!buyGroceries || buyGroceries.length === 0) && (!plan?.groceryList || plan.groceryList.length === 0) && (
+                    <li style={{ listStyle: 'none', color: '#6b7280' }}>No grocery items yet. Generate a plan or adjust settings.</li>
+                  )}
+                  {(buyGroceries.length ? buyGroceries : []).map((g, idx) => {
+                    const tip = getSubstitutionTip(g.name)
+                    return (
+                      <li key={idx}>
+                        {g.name} — {g.amount ? g.amount.toFixed(1) : ''} {g.unit || ''}
+                        {prices[norm(g.name)] && (
+                          <span style={{ color:'#28a745', fontWeight:700 }}> • ${prices[norm(g.name)].price.toFixed(2)}</span>
+                        )}
+                        {tip && (
+                          <span
+                            className="tip"
+                            onMouseEnter={(e) => {
+                              const rect = e.currentTarget.getBoundingClientRect()
+                              setTipText(tip)
+                              setTipRect(rect)
+                              setTipOpen(true)
+                            }}
+                            onMouseLeave={() => setTipOpen(false)}
+                          >
+                            ?
+                          </span>
+                        )}
+                      </li>
+                    )
+                  })}
                   {(!buyGroceries || buyGroceries.length === 0) && (
-                    (plan.groceryList || []).map((g, idx) => <li key={idx}>{g}</li>)
+                    (plan.groceryList || []).map((g, idx) => {
+                      const tip = getSubstitutionTip(g)
+                      return (
+                        <li key={idx}>
+                          {g}
+                          {tip && (
+                            <span
+                              className="tip"
+                              onMouseEnter={(e) => {
+                                const rect = e.currentTarget.getBoundingClientRect()
+                                setTipText(tip)
+                                setTipRect(rect)
+                                setTipOpen(true)
+                              }}
+                              onMouseLeave={() => setTipOpen(false)}
+                            >
+                              ?
+                            </span>
+                          )}
+                        </li>
+                      )
+                    })
                   )}
                   </ul>
                 </div>
               }
               {pantryOnlyGroceries.length > 0 && (
-                <div className="grocery-scroll">
+                <div className="grocery-scroll" onScroll={() => setTipOpen(false)}>
                   <div className="subheading">Already in Pantry</div>
                   <ul className="muted">
-                    {pantryOnlyGroceries.map((g, idx) => (
-                      <li key={idx}>{g.name} — {g.amount ? g.amount.toFixed(1) : ''} {g.unit || ''} <span className="pantry-badge">pantry</span></li>
-                    ))}
+                    {pantryOnlyGroceries.map((g, idx) => {
+                      const tip = getSubstitutionTip(g.name)
+                      return (
+                        <li key={idx}>
+                          {g.name} — {g.amount ? g.amount.toFixed(1) : ''} {g.unit || ''} <span className="pantry-badge">pantry</span>
+                          {tip && (
+                            <span
+                              className="tip"
+                              onMouseEnter={(e) => {
+                                const rect = e.currentTarget.getBoundingClientRect()
+                                setTipText(tip)
+                                setTipRect(rect)
+                                setTipOpen(true)
+                              }}
+                              onMouseLeave={() => setTipOpen(false)}
+                            >
+                              ?
+                            </span>
+                          )}
+                        </li>
+                      )
+                    })}
                   </ul>
                 </div>
               )}
@@ -936,6 +981,9 @@ export default function MealPlanner() {
           </div>
         </div>
       )}
+
+      {/* Global tooltip portal for substitution hints */}
+      <UITooltip open={tipOpen} text={tipText} anchorRect={tipRect} />
     </div>
   )
 }
