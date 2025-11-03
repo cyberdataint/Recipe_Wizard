@@ -1,37 +1,45 @@
 .topnav {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(6px);
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid #eee;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(6px);
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #eee;
 }
+
+.topnav a {
+    text-decoration: none;
+    color: #333;
+}
+
 .brand {
-  font-weight: 700;
+    font-weight: 700;
 }
 .tabs {
-  display: flex;
-  gap: 0.5rem;
+    display: flex;
+    gap: 0.5rem;
 }
 .tab {
-  background: #f3f4f6;
-  border: 1px solid #e5e7eb;
-  border-radius: 999px;
-  padding: 0.5rem 0.9rem;
-  cursor: pointer;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 999px;
+    padding: 0.5rem 0.9rem;
+    cursor: pointer;
 }
 .tab.active {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff;
-  border-color: transparent;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    border-color: transparent;
 }
-.spacer { flex: 1; }
+.spacer {
+    flex: 1;
+}
 .signout {
-  background: #ef4444;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 0.5rem 0.75rem;
-  cursor: pointer;
+    background: #ef4444;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
 }
