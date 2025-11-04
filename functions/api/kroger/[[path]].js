@@ -207,6 +207,9 @@ export async function onRequest(context) {
 
     return json(404, { error: 'Not found', path: sub });
   } catch (e) {
-    return json(500, { error: String(e?.message || e) });
+    // Log detailed error server-side
+    console.error('Kroger API error:', e && e.stack ? e.stack : e);
+    // Return generic error to client
+    return json(500, { error: "Internal server error" });
   }
 }
