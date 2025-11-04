@@ -135,7 +135,7 @@ Our project uses ESLint with the following configuration:
 - React Hooks rules
 - React Refresh rules for Vite
 - Custom rules:
-  - Unused variables must start with uppercase (e.g., `_unusedVar`)
+  - Unused variables are allowed if they start with uppercase or underscore (e.g., `_unusedVar` or `UNUSED_CONSTANT`)
   - Empty block statements are not allowed
 
 ### Running ESLint
@@ -144,7 +144,7 @@ Our project uses ESLint with the following configuration:
 # Check for linting errors
 npm run lint
 
-# Many errors can be auto-fixed (not all)
+# Auto-fix linting errors where possible (formatting, spacing, etc.)
 npm run lint -- --fix
 ```
 
