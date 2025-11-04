@@ -20,8 +20,8 @@ We take the security of Recipe Wizard seriously. If you discover a security vuln
 
 Instead, please report security vulnerabilities by:
 
-1. **Email**: Send details to the repository maintainer through GitHub
-2. **GitHub Security Advisories**: Use the [GitHub Security Advisories](https://github.com/cyberdataint/Recipe_Wizard/security/advisories/new) feature (preferred method)
+1. **GitHub Security Advisories**: Use the [GitHub Security Advisories](https://github.com/cyberdataint/Recipe_Wizard/security/advisories/new) feature (preferred method)
+2. **Private Disclosure**: Contact the repository maintainers directly via GitHub's private vulnerability reporting feature
 
 ### What to Include
 
@@ -97,8 +97,9 @@ Users should review the security and privacy policies of these services.
 
 ### Client-Side Security
 
-- API keys prefixed with `VITE_` are exposed in the client bundle
-- Use server-side proxies for sensitive API operations
+- API keys prefixed with `VITE_` are bundled in the client-side code and visible to users
+- Only use `VITE_` prefix for API keys that are safe for public/client-side use
+- Use server-side proxies for sensitive API operations (e.g., the Kroger API proxy)
 - Implement proper CORS policies
 
 ## Security Updates
