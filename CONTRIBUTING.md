@@ -321,7 +321,7 @@ Please be respectful and constructive in all interactions. We're all here to bui
 
 ## License
 
-By contributing to Recipe Wizard, you agree that your contributions will be licensed under the same license as the project.
+By contributing to Recipe Wizard, you agree that your contributions will be licensed under the Apache License 2.0, the same license as the project. See the [LICENSE](LICENSE) file for details.
 
 ---
 
