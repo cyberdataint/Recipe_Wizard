@@ -118,7 +118,7 @@ export default function Recipes() {
 
       {recipes.length === 0 && !loading && (
         <div className="welcome-message">
-          <h2>Welcome to Recipe Wizard!</h2>
+          <h2>Test automation with Cloudflare and GitHub</h2>
           <p>Search for recipes by name, ingredients, or cuisine type:</p>
           <div className="example-searches">
             <button onClick={() => { setQuery('pasta carbonara') }}>🍝 Pasta</button>
