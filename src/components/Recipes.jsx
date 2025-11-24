@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import '../App.css'
 import { useAuth } from '../contexts/AuthContext'
 import favoritesAPI from '../FavoritesAPI'
