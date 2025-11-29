@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import './Chat.css'
 import { useAuth } from '../contexts/AuthContext'
 import { useData } from '../contexts/DataContext'
@@ -257,7 +257,7 @@ export default function Chat() {
       for (const item of items) {
         try {
           if (import.meta.env.DEV) console.log('Adding to shopping list:', item)
-          const { data, error } = await supabase
+          const { error } = await supabase
             .from('shopping_list_items')
             .insert([{ 
               ingredient_name: item.ingredient_name,
@@ -302,7 +302,7 @@ export default function Chat() {
       for (const item of items) {
         try {
           if (import.meta.env.DEV) console.log('Adding to pantry:', item)
-          const { data, error } = await supabase
+          const { error } = await supabase
             .from('pantry_items')
             .insert([{ 
               ingredient_name: item.ingredient_name,
